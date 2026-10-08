@@ -82,3 +82,47 @@ class UserResponseSchema(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class LoginRequestSchema(BaseModel):
+    identifier: str
+    password: str
+
+    @field_validator("identifier")
+    @classmethod
+    def normalize_identifier(cls, value: str) -> str:
+        identifier = value.strip()
+
+        if not identifier:
+            raise ValueError("Email or phone number is required")
+
+        if "@" in identifier:
+            return identifier.lower()
+
+        phone = identifier.replace(" ", "").replace("-", "")
+
+        if not PHONE_PATTERN.fullmatch(phone):
+            raise ValueError(
+                "Provide a valid email or phone in E.164 format, "
+                "for example +380501234567"
+            )
+
+        return phone
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Password is required")
+
+        return value
+
+
+class TokenResponseSchema(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class RefreshTokenRequestSchema(BaseModel):
+    refresh_token: str

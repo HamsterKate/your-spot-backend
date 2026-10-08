@@ -1,13 +1,30 @@
+from uuid import uuid4
+
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.schemas import RegisterRequestSchema
-from app.auth.security import hash_password
+from app.auth.models import RefreshTokenModel
+from app.auth.schemas import (
+    LoginRequestSchema,
+    RegisterRequestSchema,
+    TokenResponseSchema,
+)
+from app.auth.security import (
+    create_access_token,
+    create_refresh_token,
+    get_refresh_token_expiration,
+    hash_password,
+    verify_password,
+)
 from app.users.models import UserModel
 
 
 class UserAlreadyExistsError(Exception):
+    pass
+
+
+class InvalidCredentialsError(Exception):
     pass
 
 
@@ -47,3 +64,43 @@ async def register_user(
     await db.refresh(user)
 
     return user
+
+
+async def login_user(
+    db: AsyncSession,
+    login_data: LoginRequestSchema,
+) -> TokenResponseSchema:
+    user = await db.scalar(
+        select(UserModel).where(
+            or_(
+                UserModel.email == login_data.identifier,
+                UserModel.phone == login_data.identifier,
+            )
+        )
+    )
+
+    if (
+        user is None
+        or not user.is_active
+        or not verify_password(login_data.password, user.hashed_password)
+    ):
+        raise InvalidCredentialsError
+
+    refresh_token_expires_at = get_refresh_token_expiration()
+    refresh_token_model = RefreshTokenModel(
+        user_id=user.id,
+        jti=uuid4(),
+        expires_at=refresh_token_expires_at,
+    )
+
+    db.add(refresh_token_model)
+    await db.commit()
+
+    return TokenResponseSchema(
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(
+            user_id=user.id,
+            jti=refresh_token_model.jti,
+            expires_at=refresh_token_expires_at,
+        ),
+    )
