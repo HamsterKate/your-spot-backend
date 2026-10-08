@@ -1,13 +1,14 @@
 from fastapi import FastAPI
 
+from app.core.config import settings
 
 app = FastAPI(
-    title="Your Spot API",
+    title=settings.app_name,
     description=(
         "Backend API for creating personal locations "
         "and sharing them with private groups."
     ),
-    version="0.1.0",
+    version=settings.app_version,
 )
 
 
