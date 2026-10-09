@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from app.groups.models import GroupMemberRoleEnum
+
 
 class GroupCreateRequestSchema(BaseModel):
     name: str
@@ -43,3 +45,8 @@ class GroupResponseSchema(BaseModel):
     description: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class UserGroupResponseSchema(GroupResponseSchema):
+    role: GroupMemberRoleEnum
+    joined_at: datetime
