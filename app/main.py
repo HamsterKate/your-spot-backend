@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.core.config import settings
 from app.auth.router import router as auth_router
+from app.groups.router import router as groups_router
 
 app = FastAPI(
     title=settings.app_name,
@@ -13,6 +14,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
+app.include_router(groups_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health", tags=["health"])
