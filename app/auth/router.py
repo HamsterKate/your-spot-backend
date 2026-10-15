@@ -34,7 +34,7 @@ async def register(
     except UserAlreadyExistsError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A user with this username, email, or phone already exists",
+            detail="A user with this email already exists",
         ) from error
 
 
@@ -48,7 +48,7 @@ async def login(
     except InvalidCredentialsError as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email, phone number, or password",
+            detail="Invalid email or password",
         ) from error
 
 
