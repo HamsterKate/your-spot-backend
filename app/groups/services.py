@@ -15,6 +15,7 @@ async def create_group(
     group_data: GroupCreateRequestSchema,
 ) -> GroupModel:
     group = GroupModel(
+        creator_id=owner.id,
         name=group_data.name,
         description=group_data.description,
     )
@@ -56,6 +57,7 @@ async def get_user_groups(
     return [
         UserGroupResponseSchema(
             id=group.id,
+            creator_id=group.creator_id,
             name=group.name,
             description=group.description,
             created_at=group.created_at,
