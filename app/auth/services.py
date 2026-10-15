@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,25 +32,19 @@ async def register_user(
     db: AsyncSession,
     register_data: RegisterRequestSchema,
 ) -> UserModel:
-    unique_fields = [UserModel.username == register_data.username]
-
-    if register_data.email:
-        unique_fields.append(UserModel.email == register_data.email)
-
-    if register_data.phone:
-        unique_fields.append(UserModel.phone == register_data.phone)
-
-    existing_user_id = await db.scalar(select(UserModel.id).where(or_(*unique_fields)))
+    existing_user_id = await db.scalar(
+        select(UserModel.id).where(
+            UserModel.email == register_data.email,
+        )
+    )
 
     if existing_user_id is not None:
         raise UserAlreadyExistsError
 
     user = UserModel(
-        first_name=register_data.first_name,
-        username=register_data.username,
+        display_name=register_data.display_name,
         email=register_data.email,
-        phone=register_data.phone,
-        hashed_password=hash_password(register_data.password),
+        password_hash=hash_password(register_data.password),
     )
 
     db.add(user)
@@ -72,17 +66,14 @@ async def login_user(
 ) -> TokenResponseSchema:
     user = await db.scalar(
         select(UserModel).where(
-            or_(
-                UserModel.email == login_data.identifier,
-                UserModel.phone == login_data.identifier,
-            )
+            UserModel.email == login_data.email,
         )
     )
 
     if (
         user is None
         or not user.is_active
-        or not verify_password(login_data.password, user.hashed_password)
+        or not verify_password(login_data.password, user.password_hash)
     ):
         raise InvalidCredentialsError
 

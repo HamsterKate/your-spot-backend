@@ -24,8 +24,8 @@ def hash_password(password: str) -> str:
     return password_hash.hash(password)
 
 
-def verify_password(password: str, hashed_password: str) -> bool:
-    return password_hash.verify(password, hashed_password)
+def verify_password(password: str, stored_password_hash: str) -> bool:
+    return password_hash.verify(password, stored_password_hash)
 
 
 def create_access_token(user_id: UUID) -> str:
