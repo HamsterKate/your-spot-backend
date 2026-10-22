@@ -30,9 +30,17 @@ dev = [
     "pytest-asyncio (>=1.4.0,<2.0.0)",
     "httpx (>=0.28.1,<0.29.0)",
     "pytest-cov (>=7.1.0,<8.0.0)",
-    "black (>=26.10.0,<27.0.0)"
+    "black (>=26.10.0,<27.0.0)",
+    "aiosqlite (>=0.22.1,<0.23.0)"
 ]
 
 [tool.black]
 line-length = 88
 target-version = ["py312"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"

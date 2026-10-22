@@ -13,9 +13,15 @@ from app.auth.services import (
     UserAlreadyExistsError,
     login_user,
     register_user,
+    get_current_user,
+    logout_user,
 )
-from app.auth.token_services import InvalidRefreshTokenError, refresh_tokens
+from app.auth.token_services import (
+    InvalidRefreshTokenError,
+    refresh_tokens,
+)
 from app.db.session import get_db
+from app.users.models import UserModel
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -64,3 +70,11 @@ async def refresh(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
         ) from error
+
+
+@router.get("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await logout_user(db, current_user)

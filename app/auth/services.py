@@ -1,23 +1,35 @@
-from uuid import uuid4
+from uuid import uuid4, UUID
 
-from sqlalchemy import select
+from datetime import datetime, timezone
+
+from fastapi import HTTPException, status, Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import or_, delete, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
-from app.auth.models import RefreshTokenModel
+from app.auth.models import RefreshTokenModel, AccessTokenModel
 from app.auth.schemas import (
     LoginRequestSchema,
     RegisterRequestSchema,
     TokenResponseSchema,
 )
 from app.auth.security import (
-    create_access_token,
-    create_refresh_token,
     get_refresh_token_expiration,
     hash_password,
     verify_password,
+    decode_token,
+    TokenType,
+    InvalidAuthTokenError,
+    get_access_token_expiration,
+    create_token,
 )
+from app.auth.token_services import delete_user_tokens, regenerate_tokens
+from app.db.session import get_db
 from app.users.models import UserModel
+
+bearer_scheme = HTTPBearer()
 
 
 class UserAlreadyExistsError(Exception):
@@ -33,9 +45,7 @@ async def register_user(
     register_data: RegisterRequestSchema,
 ) -> UserModel:
     existing_user_id = await db.scalar(
-        select(UserModel.id).where(
-            UserModel.email == register_data.email,
-        )
+        select(UserModel.id).where(UserModel.email == register_data.email)
     )
 
     if existing_user_id is not None:
@@ -77,21 +87,45 @@ async def login_user(
     ):
         raise InvalidCredentialsError
 
-    refresh_token_expires_at = get_refresh_token_expiration()
-    refresh_token_model = RefreshTokenModel(
-        user_id=user.id,
-        jti=uuid4(),
-        expires_at=refresh_token_expires_at,
+    return await regenerate_tokens(db, user)
+
+
+def _invalid_access_token_error() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired access token",
     )
 
-    db.add(refresh_token_model)
-    await db.commit()
 
-    return TokenResponseSchema(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(
-            user_id=user.id,
-            jti=refresh_token_model.jti,
-            expires_at=refresh_token_expires_at,
-        ),
+async def get_current_user(
+    db: AsyncSession = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> UserModel:
+    try:
+        payload = decode_token(
+            credentials.credentials,
+            expected_token_type=TokenType.ACCESS,
+        )
+        user_id = UUID(str(payload["sub"]))
+        jti = UUID(str(payload["jti"]))
+    except (InvalidAuthTokenError, KeyError, TypeError, ValueError) as error:
+        raise _invalid_access_token_error() from error
+
+    user = await db.scalar(
+        select(UserModel)
+        .join(AccessTokenModel, AccessTokenModel.user_id == UserModel.id)
+        .where(
+            UserModel.id == user_id,
+            UserModel.is_active.is_(True),
+            AccessTokenModel.jti == jti,
+            AccessTokenModel.expires_at > datetime.now(timezone.utc),
+        )
     )
+    if user is None:
+        raise _invalid_access_token_error()
+
+    return user
+
+
+async def logout_user(db: AsyncSession, current_user: UserModel):
+    await delete_user_tokens(db, current_user.id)

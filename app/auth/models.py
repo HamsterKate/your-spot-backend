@@ -8,9 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 
-class RefreshTokenModel(Base):
-    __tablename__ = "refresh_tokens"
-
+class TokenModelMixin:
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         primary_key=True,
@@ -37,3 +35,11 @@ class RefreshTokenModel(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
+class AccessTokenModel(Base, TokenModelMixin):
+    __tablename__ = "access_tokens"
+
+
+class RefreshTokenModel(Base, TokenModelMixin):
+    __tablename__ = "refresh_tokens"
