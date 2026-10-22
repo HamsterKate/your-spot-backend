@@ -14,14 +14,14 @@ class RegisterRequestSchema(BaseModel):
     def validate_display_name(cls, value: str) -> str:
         display_name = value.strip()
 
-        if not 1 <= len(display_name) <= 50:
-            raise ValueError("Display name must contain from 1 to 50 characters")
+        if not 2 <= len(display_name) <= 100:
+            raise ValueError("Display name must contain from 1 to 100 characters")
 
         return display_name
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: EmailStr) -> str:
+    def normalize_email(cls, value: EmailStr) -> EmailStr:
         return value.lower()
 
     @field_validator("password")
@@ -39,6 +39,7 @@ class UserResponseSchema(BaseModel):
     id: UUID
     display_name: str
     email: EmailStr
+    is_active: bool
     created_at: datetime
     updated_at: datetime
 
@@ -49,16 +50,8 @@ class LoginRequestSchema(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, value: EmailStr) -> str:
+    def normalize_email(cls, value: EmailStr) -> EmailStr:
         return value.lower()
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, value: str) -> str:
-        if not value:
-            raise ValueError("Password is required")
-
-        return value
 
 
 class TokenResponseSchema(BaseModel):

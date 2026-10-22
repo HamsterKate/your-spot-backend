@@ -9,8 +9,8 @@ from alembic import context
 
 from app.core.config import settings
 from app.db.base import Base
-from app.users.models import UserModel
-from app.auth.models import RefreshTokenModel
+from app.auth import models
+from app.users import models
 from app.groups.models import GroupMemberModel, GroupModel
 
 # this is the Alembic Config object, which provides
