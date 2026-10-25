@@ -4,7 +4,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.places.models import PlaceModel
-from app.places.schemas import PlaceCreateRequestSchema
+from app.places.schemas import (
+    PlaceCreateRequestSchema,
+    PlaceUpdateRequestSchema,
+)
 from app.users.models import UserModel
 
 
@@ -49,3 +52,25 @@ async def get_current_user_place(
             PlaceModel.creator_id == user.id,
         )
     )
+
+
+async def update_place(
+    db: AsyncSession,
+    place: PlaceModel,
+    place_data: PlaceUpdateRequestSchema,
+) -> PlaceModel:
+    for field_name, value in place_data.model_dump(exclude_unset=True).items():
+        setattr(place, field_name, value)
+
+    await db.commit()
+    await db.refresh(place)
+
+    return place
+
+
+async def delete_place(
+    db: AsyncSession,
+    place: PlaceModel,
+) -> None:
+    await db.delete(place)
+    await db.commit()
