@@ -66,3 +66,11 @@ async def update_place(
     await db.refresh(place)
 
     return place
+
+
+async def delete_place(
+    db: AsyncSession,
+    place: PlaceModel,
+) -> None:
+    await db.delete(place)
+    await db.commit()
