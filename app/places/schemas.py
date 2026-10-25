@@ -1,7 +1,13 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 class PlaceCreateRequestSchema(BaseModel):
@@ -42,6 +48,59 @@ class PlaceCreateRequestSchema(BaseModel):
             raise ValueError("Address must contain no more than 500 characters")
 
         return address or None
+
+
+class PlaceUpdateRequestSchema(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    address: str | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    opening_hours: dict[str, object] | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        name = value.strip()
+
+        if not 1 <= len(name) <= 255:
+            raise ValueError("Name must contain from 1 to 255 characters")
+
+        return name
+
+    @field_validator("description")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        return value.strip() or None
+
+    @field_validator("address")
+    @classmethod
+    def validate_address(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        address = value.strip()
+
+        if len(address) > 500:
+            raise ValueError("Address must contain at most 500 characters")
+
+        return address or None
+
+    @model_validator(mode="after")
+    def validate_update_data(self) -> "PlaceUpdateRequestSchema":
+        if not self.model_fields_set:
+            raise ValueError("Provide at least one field to update")
+
+        if "name" in self.model_fields_set and self.name is None:
+            raise ValueError("Name cannot be null")
+
+        return self
 
 
 class PlaceResponseSchema(BaseModel):

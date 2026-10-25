@@ -10,8 +10,13 @@ from app.places.models import PlaceModel
 from app.places.schemas import (
     PlaceCreateRequestSchema,
     PlaceResponseSchema,
+    PlaceUpdateRequestSchema,
 )
-from app.places.services import create_place, get_current_user_place
+from app.places.services import (
+    create_place,
+    get_current_user_place,
+    update_place,
+)
 from app.users.models import UserModel
 
 router = APIRouter(prefix="/places", tags=["places"])
@@ -81,3 +86,29 @@ async def get_place(
         )
 
     return place
+
+
+@router.patch(
+    "/{place_id}",
+    response_model=PlaceResponseSchema,
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Place not found",
+        },
+    },
+)
+async def update_current_user_place(
+    place_id: UUID,
+    place_data: PlaceUpdateRequestSchema,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PlaceModel:
+    place = await get_current_user_place(db, current_user, place_id)
+
+    if place is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Place not found",
+        )
+
+    return await update_place(db, place, place_data)
