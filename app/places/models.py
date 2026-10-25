@@ -67,3 +67,75 @@ class PlaceModel(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class CategoryModel(Base):
+    __tablename__ = "categories"
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    name: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class TagModel(Base):
+    __tablename__ = "tags"
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    name: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class PlaceCategoryModel(Base):
+    __tablename__ = "place_categories"
+
+    place_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("places.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    category_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("categories.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+
+
+class PlaceTagModel(Base):
+    __tablename__ = "place_tags"
+
+    place_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("places.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    tag_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tags.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
