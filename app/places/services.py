@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.places.models import PlaceModel
@@ -20,3 +21,16 @@ async def create_place(
     await db.refresh(place)
 
     return place
+
+
+async def get_current_user_places(
+    db: AsyncSession,
+    user: UserModel,
+) -> list[PlaceModel]:
+    result = await db.scalars(
+        select(PlaceModel)
+        .where(PlaceModel.creator_id == user.id)
+        .order_by(PlaceModel.created_at.desc())
+    )
+
+    return list(result)
