@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,3 +36,16 @@ async def get_current_user_places(
     )
 
     return list(result)
+
+
+async def get_current_user_place(
+    db: AsyncSession,
+    user: UserModel,
+    place_id: UUID,
+) -> PlaceModel | None:
+    return await db.scalar(
+        select(PlaceModel).where(
+            PlaceModel.id == place_id,
+            PlaceModel.creator_id == user.id,
+        )
+    )
