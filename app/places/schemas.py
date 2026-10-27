@@ -8,6 +8,22 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from app.taxonomy.schemas import CategoryResponseSchema, TagResponseSchema
+
+
+def normalize_tags(tags: list[str]) -> list[str]:
+    normalized_tags = [" ".join(tag.split()).lower() for tag in tags]
+
+    if any(not tag for tag in normalized_tags):
+        raise ValueError("Tags cannot be empty")
+
+    if any(len(tag) > 100 for tag in normalized_tags):
+        raise ValueError("Each tag must contain no more than 100 characters")
+
+    if len(normalized_tags) != len(set(normalized_tags)):
+        raise ValueError("Tags must be unique")
+
+    return normalized_tags
 
 
 class PlaceCreateRequestSchema(BaseModel):
@@ -17,6 +33,8 @@ class PlaceCreateRequestSchema(BaseModel):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     opening_hours: dict[str, object] | None = None
+    category_ids: list[UUID] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
     @field_validator("name")
     @classmethod
@@ -49,6 +67,19 @@ class PlaceCreateRequestSchema(BaseModel):
 
         return address or None
 
+    @field_validator("category_ids")
+    @classmethod
+    def validate_category_ids(cls, value: list[UUID]) -> list[UUID]:
+        if len(value) != len(set(value)):
+            raise ValueError("Category IDs must be unique")
+
+        return value
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, value: list[str]) -> list[str]:
+        return normalize_tags(value)
+
 
 class PlaceUpdateRequestSchema(BaseModel):
     name: str | None = None
@@ -57,6 +88,8 @@ class PlaceUpdateRequestSchema(BaseModel):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     opening_hours: dict[str, object] | None = None
+    category_ids: list[UUID] | None = None
+    tags: list[str] | None = None
 
     @field_validator("name")
     @classmethod
@@ -102,6 +135,25 @@ class PlaceUpdateRequestSchema(BaseModel):
 
         return self
 
+    @field_validator("category_ids")
+    @classmethod
+    def validate_category_ids(
+        cls,
+        value: list[UUID] | None,
+    ) -> list[UUID] | None:
+        if value is not None and len(value) != len(set(value)):
+            raise ValueError("Category IDs must be unique")
+
+        return value
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+
+        return normalize_tags(value)
+
 
 class PlaceResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -116,3 +168,5 @@ class PlaceResponseSchema(BaseModel):
     opening_hours: dict[str, object] | None
     created_at: datetime
     updated_at: datetime
+    categories: list[CategoryResponseSchema]
+    tags: list[TagResponseSchema]

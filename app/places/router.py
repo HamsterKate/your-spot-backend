@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -13,10 +12,12 @@ from app.places.schemas import (
     PlaceUpdateRequestSchema,
 )
 from app.places.services import (
+    CategoryNotFoundError,
     create_place,
-    get_current_user_place,
-    update_place,
     delete_place,
+    get_current_user_place,
+    get_current_user_places,
+    update_place,
 )
 from app.users.models import UserModel
 
@@ -27,17 +28,28 @@ router = APIRouter(prefix="/places", tags=["places"])
     "",
     response_model=PlaceResponseSchema,
     status_code=status.HTTP_201_CREATED,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "One or more categories do not exist",
+        },
+    },
 )
 async def create_new_place(
     place_data: PlaceCreateRequestSchema,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> PlaceResponseSchema:
-    return await create_place(
-        db=db,
-        creator=current_user,
-        place_data=place_data,
-    )
+) -> PlaceModel:
+    try:
+        return await create_place(
+            db=db,
+            creator=current_user,
+            place_data=place_data,
+        )
+    except CategoryNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more categories do not exist",
+        ) from error
 
 
 @router.get(
@@ -49,19 +61,6 @@ async def get_places(
     db: AsyncSession = Depends(get_db),
 ) -> list[PlaceModel]:
     return await get_current_user_places(db, current_user)
-
-
-async def get_current_user_places(
-    db: AsyncSession,
-    user: UserModel,
-) -> list[PlaceModel]:
-    result = await db.scalars(
-        select(PlaceModel)
-        .where(PlaceModel.creator_id == user.id)
-        .order_by(PlaceModel.created_at.desc())
-    )
-
-    return list(result)
 
 
 @router.get(
@@ -93,6 +92,9 @@ async def get_place(
     "/{place_id}",
     response_model=PlaceResponseSchema,
     responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "One or more categories do not exist",
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": "Place not found",
         },
@@ -112,7 +114,13 @@ async def update_current_user_place(
             detail="Place not found",
         )
 
-    return await update_place(db, place, place_data)
+    try:
+        return await update_place(db, place, place_data)
+    except CategoryNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more categories do not exist",
+        ) from error
 
 
 @router.delete(
