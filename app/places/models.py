@@ -13,7 +13,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -67,6 +67,16 @@ class PlaceModel(Base):
         onupdate=func.now(),
         nullable=False,
     )
+    categories: Mapped[list["CategoryModel"]] = relationship(
+        secondary="place_categories",
+        viewonly=True,
+        lazy="selectin",
+    )
+    tags: Mapped[list["TagModel"]] = relationship(
+        secondary="place_tags",
+        viewonly=True,
+        lazy="selectin",
+    )
 
 
 class CategoryModel(Base):
@@ -82,6 +92,7 @@ class CategoryModel(Base):
         unique=True,
         nullable=False,
     )
+    description: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
