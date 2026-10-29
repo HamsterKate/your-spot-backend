@@ -24,7 +24,7 @@ app.include_router(places_router, prefix=settings.api_v1_prefix)
 app.include_router(taxonomy_router, prefix=settings.api_v1_prefix)
 
 
-@app.get(settings.api_v1_prefix, tags=["health"])
+@app.get(f"{settings.api_v1_prefix}/health", tags=["health"])
 async def health_check() -> dict[str, str]:
     return {
         "status": "healthy",
