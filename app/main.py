@@ -13,8 +13,8 @@ app = FastAPI(
         "and sharing them with private groups."
     ),
     version=settings.app_version,
-    docs=f"{settings.api_v1_prefix}/docs",
-    redoc=f"{settings.api_v1_prefix}/redoc",
+    docs_url=f"{settings.api_v1_prefix}/docs",
+    redoc_url=f"{settings.api_v1_prefix}/redoc",
 )
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
@@ -29,5 +29,6 @@ async def health_check() -> dict[str, str]:
         "status": "healthy",
         "service": "Spots API",
         "environment": "production",
+        "version": settings.app_version,
         "docs": f"{settings.api_v1_prefix}/docs"
     }
