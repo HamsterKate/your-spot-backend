@@ -7,7 +7,7 @@ from app.auth.models import AccessTokenModel, RefreshTokenModel
 from app.auth.security import TokenType, decode_token
 from app.users.models import UserModel
 
-from .conftest import PASSWORD
+from tests.conftest import PASSWORD
 
 
 async def _login(client, email, password):
