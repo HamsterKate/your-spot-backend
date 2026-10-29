@@ -13,6 +13,8 @@ app = FastAPI(
         "and sharing them with private groups."
     ),
     version=settings.app_version,
+    docs="/docs",
+    redoc="/redoc",
 )
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
