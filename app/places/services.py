@@ -147,6 +147,19 @@ async def create_place(
     return created_place
 
 
+async def get_places_for_guest(db: AsyncSession) -> list[PlaceModel]:
+    result = await db.scalars(
+        select(PlaceModel)
+        .options(
+            selectinload(PlaceModel.categories),
+            selectinload(PlaceModel.tags),
+        )
+        .order_by(PlaceModel.created_at.desc())
+    )
+
+    return list(result)
+
+
 async def get_current_user_places(
     db: AsyncSession,
     user: UserModel,
@@ -162,6 +175,19 @@ async def get_current_user_places(
     )
 
     return list(result)
+
+
+async def get_place_for_guest(db: AsyncSession, place_id: UUID) -> PlaceModel | None:
+    return await db.scalar(
+        select(PlaceModel)
+        .options(
+            selectinload(PlaceModel.categories),
+            selectinload(PlaceModel.tags),
+        )
+        .where(
+            PlaceModel.id == place_id,
+        )
+    )
 
 
 async def get_current_user_place(

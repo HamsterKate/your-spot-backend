@@ -19,7 +19,6 @@ router = APIRouter(prefix="/taxonomy", tags=["taxonomy"])
     response_model=list[CategoryResponseSchema],
 )
 async def get_all_categories(
-    _: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[CategoryModel]:
     return await get_categories(db)
@@ -30,7 +29,6 @@ async def get_all_categories(
     response_model=list[TagResponseSchema],
 )
 async def get_all_tags(
-    _: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[TagModel]:
     return await get_tags(db)

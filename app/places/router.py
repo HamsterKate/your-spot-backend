@@ -16,8 +16,9 @@ from app.places.services import (
     create_place,
     delete_place,
     get_current_user_place,
-    get_current_user_places,
     update_place,
+    get_place_for_guest,
+    get_places_for_guest,
 )
 from app.users.models import UserModel
 
@@ -56,11 +57,8 @@ async def create_new_place(
     "",
     response_model=list[PlaceResponseSchema],
 )
-async def get_places(
-    current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[PlaceModel]:
-    return await get_current_user_places(db, current_user)
+async def get_places(db: AsyncSession = Depends(get_db)) -> list[PlaceModel]:
+    return await get_places_for_guest(db)
 
 
 @router.get(
@@ -72,12 +70,8 @@ async def get_places(
         },
     },
 )
-async def get_place(
-    place_id: UUID,
-    current_user: UserModel = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> PlaceModel:
-    place = await get_current_user_place(db, current_user, place_id)
+async def get_place(place_id: UUID, db: AsyncSession = Depends(get_db)) -> PlaceModel:
+    place = await get_place_for_guest(db, place_id)
 
     if place is None:
         raise HTTPException(
