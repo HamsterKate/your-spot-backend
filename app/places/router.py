@@ -1,6 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Query,
+    Request,
+    Response
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -18,7 +26,8 @@ from app.places.services import (
     get_current_user_place,
     update_place,
     get_place_for_guest,
-    get_places_for_guest, get_current_user_places,
+    get_places_for_guest,
+    get_current_user_places,
 )
 from app.users.models import UserModel
 
