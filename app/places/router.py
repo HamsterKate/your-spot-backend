@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -18,7 +18,7 @@ from app.places.services import (
     get_current_user_place,
     update_place,
     get_place_for_guest,
-    get_places_for_guest,
+    get_places_for_guest, get_current_user_places,
 )
 from app.users.models import UserModel
 
@@ -37,11 +37,13 @@ router = APIRouter(prefix="/places", tags=["places"])
 )
 async def create_new_place(
     place_data: PlaceCreateRequestSchema,
+    request: Request,
+    response: Response,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> PlaceModel:
+) -> PlaceResponseSchema:
     try:
-        return await create_place(
+        place = await create_place(
             db=db,
             creator=current_user,
             place_data=place_data,
@@ -52,13 +54,35 @@ async def create_new_place(
             detail="One or more categories do not exist",
         ) from error
 
+    url = str(request.url_for("get_place", place_id=place.id))
+    response.headers["Location"] = url
+
+    return PlaceResponseSchema.model_validate(place).model_copy(update={"url": url})
+
 
 @router.get(
     "",
     response_model=list[PlaceResponseSchema],
 )
-async def get_places(db: AsyncSession = Depends(get_db)) -> list[PlaceModel]:
-    return await get_places_for_guest(db)
+async def get_places(
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100)
+) -> list[PlaceModel]:
+    return await get_places_for_guest(db, page=page, page_size=page_size)
+
+
+@router.get(
+    "/me",
+    response_model=list[PlaceResponseSchema],
+)
+async def get_places_me(
+    db: AsyncSession = Depends(get_db),
+    user: UserModel = Depends(get_current_user),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100)
+) -> list[PlaceModel]:
+    return await get_current_user_places(db, user, page, page_size)
 
 
 @router.get(

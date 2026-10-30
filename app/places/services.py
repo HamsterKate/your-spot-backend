@@ -147,14 +147,20 @@ async def create_place(
     return created_place
 
 
-async def get_places_for_guest(db: AsyncSession) -> list[PlaceModel]:
+async def get_places_for_guest(
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 20
+) -> list[PlaceModel]:
     result = await db.scalars(
         select(PlaceModel)
         .options(
             selectinload(PlaceModel.categories),
             selectinload(PlaceModel.tags),
         )
-        .order_by(PlaceModel.created_at.desc())
+        .order_by(PlaceModel.created_at.desc(), PlaceModel.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
 
     return list(result)
@@ -163,6 +169,8 @@ async def get_places_for_guest(db: AsyncSession) -> list[PlaceModel]:
 async def get_current_user_places(
     db: AsyncSession,
     user: UserModel,
+    page: int = 1,
+    page_size: int = 20
 ) -> list[PlaceModel]:
     result = await db.scalars(
         select(PlaceModel)
@@ -171,7 +179,9 @@ async def get_current_user_places(
             selectinload(PlaceModel.tags),
         )
         .where(PlaceModel.creator_id == user.id)
-        .order_by(PlaceModel.created_at.desc())
+        .order_by(PlaceModel.created_at.desc(), PlaceModel.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
 
     return list(result)
@@ -236,7 +246,7 @@ async def update_place(
         )
 
     await db.commit()
-    await db.refresh(place, attribute_names=["categories", "tags"])
+    await db.refresh(place, attribute_names=["updated_at", "categories", "tags"])
 
     return place
 
