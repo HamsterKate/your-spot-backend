@@ -91,3 +91,19 @@ async def tokens(client, registered_user, register_payload) -> dict:
 @pytest.fixture
 def auth_headers(tokens) -> dict:
     return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+
+@pytest.fixture
+def place_payload() -> dict:
+    return {
+        "name": "Test Place",
+        "description": "A place used by endpoint tests.",
+        "address": "123 Test Street",
+    }
+
+
+@pytest_asyncio.fixture
+async def place(client, auth_headers, place_payload) -> dict:
+    response = await client.post("/places", json=place_payload, headers=auth_headers)
+    assert response.status_code == 201, response.text
+    return response.json()

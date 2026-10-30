@@ -1,5 +1,6 @@
 from datetime import datetime
 from uuid import UUID
+from typing_extensions import Self
 
 from pydantic import (
     BaseModel,
@@ -79,6 +80,14 @@ class PlaceCreateRequestSchema(BaseModel):
     @classmethod
     def validate_tags(cls, value: list[str]) -> list[str]:
         return normalize_tags(value)
+
+    @model_validator(mode="after")
+    def validate_location(self) -> Self:
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("latitude and longitude must be provided together")
+        if self.address is None and self.latitude is None:
+            raise ValueError("provide an address, coordinates, or both")
+        return self
 
 
 class PlaceUpdateRequestSchema(BaseModel):
@@ -170,3 +179,4 @@ class PlaceResponseSchema(BaseModel):
     updated_at: datetime
     categories: list[CategoryResponseSchema]
     tags: list[TagResponseSchema]
+    url: str | None = None
