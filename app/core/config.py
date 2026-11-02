@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
 
+    # MinIO
+    minio_endpoint: str
+    minio_access_key: str
+    minio_secret_key: str
+    minio_bucket: str = "place-photos"
+    minio_secure: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
