@@ -11,15 +11,11 @@ from tests.conftest import PASSWORD
 
 
 async def _login(client, email, password):
-    return await client.post(
-        "/auth/login", json={"email": email, "password": password}
-    )
+    return await client.post("/auth/login", json={"email": email, "password": password})
 
 
 async def test_login_success_returns_tokens_and_user_data(
-    client,
-    registered_user,
-    register_payload
+    client, registered_user, register_payload
 ):
     response = await _login(client, register_payload["email"], PASSWORD)
 
