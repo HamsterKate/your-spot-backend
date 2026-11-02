@@ -7,9 +7,11 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
@@ -76,6 +78,67 @@ class PlaceModel(Base):
         secondary="place_tags",
         viewonly=True,
         lazy="selectin",
+    )
+    photos: Mapped[list["PlacePhotoModel"]] = relationship(
+        back_populates="place",
+        cascade="all, delete-orphan",
+        order_by="PlacePhotoModel.position",
+        lazy="selectin",
+    )
+
+
+class PlacePhotoModel(Base):
+    __tablename__ = "place_photos"
+    __table_args__ = (
+        UniqueConstraint(
+            "place_id",
+            "position",
+            name="place_photos_place_id_position_unique",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=False,
+    )
+    place_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("places.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+    object_key: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+        nullable=False,
+    )
+    content_type: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+    position: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    place: Mapped["PlaceModel"] = relationship(
+        back_populates="photos",
     )
 
 

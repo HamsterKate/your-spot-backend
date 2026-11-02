@@ -1,6 +1,7 @@
-from uuid import UUID
+import asyncio
+from uuid import UUID, uuid4
 
-from sqlalchemy import delete, select, or_
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -8,6 +9,7 @@ from app.places.models import (
     CategoryModel,
     PlaceCategoryModel,
     PlaceModel,
+    PlacePhotoModel,
     PlaceTagModel,
     TagModel,
 )
@@ -15,10 +17,22 @@ from app.places.schemas import (
     PlaceCreateRequestSchema,
     PlaceUpdateRequestSchema,
 )
+from app.storage.minio import delete_object, get_object_content, upload_object
 from app.users.models import UserModel
 
 
 class CategoryNotFoundError(Exception):
+    pass
+
+
+MAX_PHOTOS_PER_PLACE = 10
+
+
+class PlacePhotoLimitExceededError(Exception):
+    pass
+
+
+class StorageError(Exception):
     pass
 
 
@@ -36,6 +50,7 @@ async def get_place_with_taxonomy(
         .options(
             selectinload(PlaceModel.categories),
             selectinload(PlaceModel.tags),
+            selectinload(PlaceModel.photos),
         )
         .where(PlaceModel.id == place_id)
     )
@@ -163,6 +178,7 @@ async def get_places_for_guest(
     stmt = select(PlaceModel).options(
         selectinload(PlaceModel.categories),
         selectinload(PlaceModel.tags),
+        selectinload(PlaceModel.photos),
     )
 
     if search and (term := search.strip()):
@@ -200,6 +216,7 @@ async def get_current_user_places(
         .options(
             selectinload(PlaceModel.categories),
             selectinload(PlaceModel.tags),
+            selectinload(PlaceModel.photos),
         )
         .where(PlaceModel.creator_id == user.id)
         .order_by(PlaceModel.created_at.desc(), PlaceModel.id.desc())
@@ -216,6 +233,7 @@ async def get_place_for_guest(db: AsyncSession, place_id: UUID) -> PlaceModel | 
         .options(
             selectinload(PlaceModel.categories),
             selectinload(PlaceModel.tags),
+            selectinload(PlaceModel.photos),
         )
         .where(
             PlaceModel.id == place_id,
@@ -233,6 +251,7 @@ async def get_current_user_place(
         .options(
             selectinload(PlaceModel.categories),
             selectinload(PlaceModel.tags),
+            selectinload(PlaceModel.photos),
         )
         .where(
             PlaceModel.id == place_id,
@@ -269,9 +288,118 @@ async def update_place(
         )
 
     await db.commit()
-    await db.refresh(place, attribute_names=["updated_at", "categories", "tags"])
+    await db.refresh(
+        place,
+        attribute_names=["updated_at", "categories", "tags", "photos"],
+    )
 
     return place
+
+
+async def create_place_photo(
+    db: AsyncSession,
+    place: PlaceModel,
+    user: UserModel,
+    name: str,
+    content: bytes,
+    content_type: str,
+) -> PlacePhotoModel:
+    photo_count = await db.scalar(
+        select(func.count())
+        .select_from(PlacePhotoModel)
+        .where(PlacePhotoModel.place_id == place.id)
+    )
+
+    if photo_count >= MAX_PHOTOS_PER_PLACE:
+        raise PlacePhotoLimitExceededError
+
+    last_position = await db.scalar(
+        select(func.max(PlacePhotoModel.position)).where(
+            PlacePhotoModel.place_id == place.id
+        )
+    )
+    position = 0 if last_position is None else last_position + 1
+
+    photo_id = uuid4()
+    object_key = f"places/{place.id}/{photo_id}"
+
+    try:
+        await asyncio.to_thread(
+            upload_object,
+            object_key,
+            content,
+            content_type,
+        )
+    except Exception as error:
+        raise StorageError from error
+
+    photo = PlacePhotoModel(
+        id=photo_id,
+        user_id=user.id,
+        place_id=place.id,
+        name=name,
+        object_key=object_key,
+        content_type=content_type,
+        position=position,
+    )
+    db.add(photo)
+
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        await asyncio.to_thread(delete_object, object_key)
+        raise
+
+    await db.refresh(photo)
+
+    return photo
+
+
+async def get_place_photos(
+    db: AsyncSession,
+    place_id: UUID,
+) -> list[PlacePhotoModel]:
+    result = await db.scalars(
+        select(PlacePhotoModel)
+        .where(PlacePhotoModel.place_id == place_id)
+        .order_by(PlacePhotoModel.position)
+    )
+
+    return list(result)
+
+
+async def get_place_photo(
+    db: AsyncSession,
+    place_id: UUID,
+    photo_id: UUID,
+) -> PlacePhotoModel | None:
+    return await db.scalar(
+        select(PlacePhotoModel).where(
+            PlacePhotoModel.id == photo_id,
+            PlacePhotoModel.place_id == place_id,
+        )
+    )
+
+
+async def get_place_photo_content(photo: PlacePhotoModel) -> bytes:
+    try:
+        return await asyncio.to_thread(get_object_content, photo.object_key)
+    except Exception as error:
+        raise StorageError from error
+
+
+async def delete_place_photo(
+    db: AsyncSession,
+    photo: PlacePhotoModel,
+) -> None:
+    try:
+        await asyncio.to_thread(delete_object, photo.object_key)
+    except Exception as error:
+        raise StorageError from error
+
+    await db.delete(photo)
+    await db.commit()
 
 
 async def delete_place(

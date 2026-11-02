@@ -21,6 +21,20 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: your_spot_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - your_spot_minio_data:/data
+
   web:
     build: .
     container_name: your_spot_web
@@ -39,6 +53,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_started
 
 volumes:
   your_spot_postgres_data:
+  your_spot_minio_data:

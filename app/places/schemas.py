@@ -164,6 +164,19 @@ class PlaceUpdateRequestSchema(BaseModel):
         return normalize_tags(value)
 
 
+class PlacePhotoResponseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    user_id: UUID
+    place_id: UUID
+    name: str
+    content_type: str
+    position: int
+    created_at: datetime
+    url: str | None = None
+
+
 class PlaceResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -179,4 +192,5 @@ class PlaceResponseSchema(BaseModel):
     updated_at: datetime
     categories: list[CategoryResponseSchema]
     tags: list[TagResponseSchema]
+    photos: list[PlacePhotoResponseSchema] = Field(default_factory=list)
     url: str | None = None
