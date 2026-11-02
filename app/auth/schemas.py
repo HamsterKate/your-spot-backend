@@ -62,3 +62,8 @@ class TokenResponseSchema(BaseModel):
 
 class RefreshTokenRequestSchema(BaseModel):
     refresh_token: str
+
+
+class LoginResponseSchema(TokenResponseSchema):
+    display_name: str
+    email: EmailStr

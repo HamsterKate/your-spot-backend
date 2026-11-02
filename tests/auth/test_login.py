@@ -11,16 +11,24 @@ from tests.conftest import PASSWORD
 
 
 async def _login(client, email, password):
-    return await client.post("/auth/login", json={"email": email, "password": password})
+    return await client.post(
+        "/auth/login", json={"email": email, "password": password}
+    )
 
 
-async def test_login_success_returns_tokens(client, registered_user, register_payload):
+async def test_login_success_returns_tokens_and_user_data(
+    client,
+    registered_user,
+    register_payload
+):
     response = await _login(client, register_payload["email"], PASSWORD)
 
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data["access_token"], str) and data["access_token"]
     assert isinstance(data["refresh_token"], str) and data["refresh_token"]
+    assert data["display_name"] == register_payload["display_name"]
+    assert data["email"] == register_payload["email"]
     assert data["access_token"] != data["refresh_token"]
 
 

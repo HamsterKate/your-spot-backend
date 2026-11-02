@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 from app.auth.schemas import (
     LoginRequestSchema,
     RegisterRequestSchema,
-    TokenResponseSchema,
+    LoginResponseSchema,
 )
 from app.auth.security import (
     hash_password,
@@ -59,8 +59,8 @@ async def register_user(
 async def login_user(
     db: AsyncSession,
     login_data: LoginRequestSchema,
-) -> TokenResponseSchema:
-    user = await db.scalar(
+) -> LoginResponseSchema:
+    user: UserModel = await db.scalar(
         select(UserModel).where(
             UserModel.email == login_data.email,
         )
@@ -73,7 +73,13 @@ async def login_user(
     ):
         raise InvalidCredentialsError
 
-    return await regenerate_tokens(db, user)
+    tokens = await regenerate_tokens(db, user)
+    login_response = LoginResponseSchema(
+        display_name=user.display_name,
+        email=user.email,
+        **tokens.model_dump(),
+    )
+    return login_response
 
 
 async def logout_user(db: AsyncSession, current_user: UserModel):

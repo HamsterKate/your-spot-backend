@@ -8,6 +8,7 @@ from app.auth.schemas import (
     RegisterRequestSchema,
     TokenResponseSchema,
     UserResponseSchema,
+    LoginResponseSchema,
 )
 from app.auth.services import (
     InvalidCredentialsError,
@@ -44,11 +45,11 @@ async def register(
         ) from error
 
 
-@router.post("/login", response_model=TokenResponseSchema)
+@router.post("/login", response_model=LoginResponseSchema)
 async def login(
     login_data: LoginRequestSchema,
     db: AsyncSession = Depends(get_db),
-) -> TokenResponseSchema:
+) -> LoginResponseSchema:
     try:
         return await login_user(db, login_data)
     except InvalidCredentialsError as error:
