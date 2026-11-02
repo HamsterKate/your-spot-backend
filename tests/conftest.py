@@ -17,6 +17,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.auth.models  # noqa: F401  (register tables on Base.metadata)
 import app.users.models  # noqa: F401
+from app.core.config import settings
 from app.places.models import CategoryModel, PlaceModel, TagModel
 from app.db.base import Base
 from app.db.session import get_db
@@ -120,7 +121,8 @@ async def client(db_session):
 
     app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test/api/v1"
+        transport=ASGITransport(app=app),
+        base_url=f"http://test{settings.api_v1_prefix}",
     ) as http_client:
         yield http_client
     app.dependency_overrides.clear()
