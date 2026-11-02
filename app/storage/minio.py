@@ -1,5 +1,4 @@
 import io
-from datetime import timedelta
 from functools import lru_cache
 
 from minio import Minio
@@ -49,11 +48,15 @@ def delete_object(object_key: str) -> None:
     )
 
 
-def get_presigned_url(object_key: str) -> str:
+def get_object_content(object_key: str) -> bytes:
     client = get_minio_client()
-
-    return client.presigned_get_object(
+    response = client.get_object(
         bucket_name=settings.minio_bucket,
         object_name=object_key,
-        expires=timedelta(minutes=15),
     )
+
+    try:
+        return response.read()
+    finally:
+        response.close()
+        response.release_conn()
