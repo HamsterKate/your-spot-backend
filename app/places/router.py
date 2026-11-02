@@ -1,14 +1,6 @@
 from uuid import UUID
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    status,
-    Query,
-    Request,
-    Response
-)
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -76,9 +68,19 @@ async def create_new_place(
 async def get_places(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100)
+    page_size: int = Query(20, ge=1, le=100),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    category_id: UUID | None = Query(None),
+    tag_ids: list[UUID] | None = Query(None, alias="tag_id"),
 ) -> list[PlaceModel]:
-    return await get_places_for_guest(db, page=page, page_size=page_size)
+    return await get_places_for_guest(
+        db,
+        page=page,
+        page_size=page_size,
+        search=search,
+        category_id=category_id,
+        tag_ids=tag_ids,
+    )
 
 
 @router.get(
@@ -89,7 +91,7 @@ async def get_places_me(
     db: AsyncSession = Depends(get_db),
     user: UserModel = Depends(get_current_user),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100)
+    page_size: int = Query(20, ge=1, le=100),
 ) -> list[PlaceModel]:
     return await get_current_user_places(db, user, page, page_size)
 

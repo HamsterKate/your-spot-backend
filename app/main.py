@@ -31,5 +31,5 @@ async def health_check() -> dict[str, str]:
         "service": "Spots API",
         "environment": "production",
         "version": settings.app_version,
-        "docs": f"{settings.api_v1_prefix}/docs"
+        "docs": f"{settings.api_v1_prefix}/docs",
     }

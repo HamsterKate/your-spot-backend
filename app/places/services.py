@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +20,11 @@ from app.users.models import UserModel
 
 class CategoryNotFoundError(Exception):
     pass
+
+
+def _escape_like(value: str) -> str:
+    # Escape LIKE wildcards so user input like "50%" or "a_b" is matched literally
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 async def get_place_with_taxonomy(
@@ -150,27 +155,45 @@ async def create_place(
 async def get_places_for_guest(
     db: AsyncSession,
     page: int = 1,
-    page_size: int = 20
+    page_size: int = 20,
+    search: str | None = None,
+    category_id: UUID | None = None,
+    tag_ids: list[UUID] | None = None,
 ) -> list[PlaceModel]:
-    result = await db.scalars(
-        select(PlaceModel)
-        .options(
-            selectinload(PlaceModel.categories),
-            selectinload(PlaceModel.tags),
+    stmt = select(PlaceModel).options(
+        selectinload(PlaceModel.categories),
+        selectinload(PlaceModel.tags),
+    )
+
+    if search and (term := search.strip()):
+        pattern = f"%{_escape_like(term)}%"
+        stmt = stmt.where(
+            or_(
+                PlaceModel.name.ilike(pattern, escape="\\"),
+                PlaceModel.description.ilike(pattern, escape="\\"),
+            )
         )
-        .order_by(PlaceModel.created_at.desc(), PlaceModel.id.desc())
+
+    if category_id is not None:
+        stmt = stmt.where(PlaceModel.categories.any(CategoryModel.id == category_id))
+
+    if tag_ids:
+        unique_tag_ids = set(tag_ids)
+        # ANY semantics (OR): place has at least one of the tags
+        stmt = stmt.where(PlaceModel.tags.any(TagModel.id.in_(unique_tag_ids)))
+
+    stmt = (
+        stmt.order_by(PlaceModel.created_at.desc(), PlaceModel.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
 
+    result = await db.scalars(stmt)
     return list(result)
 
 
 async def get_current_user_places(
-    db: AsyncSession,
-    user: UserModel,
-    page: int = 1,
-    page_size: int = 20
+    db: AsyncSession, user: UserModel, page: int = 1, page_size: int = 20
 ) -> list[PlaceModel]:
     result = await db.scalars(
         select(PlaceModel)
