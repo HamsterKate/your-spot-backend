@@ -28,8 +28,8 @@ def _escape_like(value: str) -> str:
 
 
 async def get_place_with_taxonomy(
-        db: AsyncSession,
-        place_id: UUID,
+    db: AsyncSession,
+    place_id: UUID,
 ) -> PlaceModel | None:
     return await db.scalar(
         select(PlaceModel)
@@ -42,8 +42,8 @@ async def get_place_with_taxonomy(
 
 
 async def get_categories_by_ids(
-        db: AsyncSession,
-        category_ids: list[UUID],
+    db: AsyncSession,
+    category_ids: list[UUID],
 ) -> list[CategoryModel]:
     if not category_ids:
         return []
@@ -61,8 +61,8 @@ async def get_categories_by_ids(
 
 
 async def get_or_create_tags(
-        db: AsyncSession,
-        tag_names: list[str],
+    db: AsyncSession,
+    tag_names: list[str],
 ) -> list[TagModel]:
     if not tag_names:
         return []
@@ -87,9 +87,9 @@ async def get_or_create_tags(
 
 
 async def replace_place_categories(
-        db: AsyncSession,
-        place: PlaceModel,
-        category_ids: list[UUID],
+    db: AsyncSession,
+    place: PlaceModel,
+    category_ids: list[UUID],
 ) -> None:
     categories = await get_categories_by_ids(db, category_ids)
 
@@ -108,9 +108,9 @@ async def replace_place_categories(
 
 
 async def replace_place_tags(
-        db: AsyncSession,
-        place: PlaceModel,
-        tag_names: list[str],
+    db: AsyncSession,
+    place: PlaceModel,
+    tag_names: list[str],
 ) -> None:
     tags = await get_or_create_tags(db, tag_names)
 
@@ -127,9 +127,9 @@ async def replace_place_tags(
 
 
 async def create_place(
-        db: AsyncSession,
-        creator: UserModel,
-        place_data: PlaceCreateRequestSchema,
+    db: AsyncSession,
+    creator: UserModel,
+    place_data: PlaceCreateRequestSchema,
 ) -> PlaceModel:
     place = PlaceModel(
         creator_id=creator.id,
@@ -153,12 +153,12 @@ async def create_place(
 
 
 async def get_places_for_guest(
-        db: AsyncSession,
-        page: int = 1,
-        page_size: int = 20,
-        search: str | None = None,
-        category_id: UUID | None = None,
-        tag_ids: list[UUID] | None = None,
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 20,
+    search: str | None = None,
+    category_id: UUID | None = None,
+    tag_ids: list[UUID] | None = None,
 ) -> list[PlaceModel]:
     stmt = select(PlaceModel).options(
         selectinload(PlaceModel.categories),
@@ -193,10 +193,7 @@ async def get_places_for_guest(
 
 
 async def get_current_user_places(
-        db: AsyncSession,
-        user: UserModel,
-        page: int = 1,
-        page_size: int = 20
+    db: AsyncSession, user: UserModel, page: int = 1, page_size: int = 20
 ) -> list[PlaceModel]:
     result = await db.scalars(
         select(PlaceModel)
@@ -227,9 +224,9 @@ async def get_place_for_guest(db: AsyncSession, place_id: UUID) -> PlaceModel | 
 
 
 async def get_current_user_place(
-        db: AsyncSession,
-        user: UserModel,
-        place_id: UUID,
+    db: AsyncSession,
+    user: UserModel,
+    place_id: UUID,
 ) -> PlaceModel | None:
     return await db.scalar(
         select(PlaceModel)
@@ -245,9 +242,9 @@ async def get_current_user_place(
 
 
 async def update_place(
-        db: AsyncSession,
-        place: PlaceModel,
-        place_data: PlaceUpdateRequestSchema,
+    db: AsyncSession,
+    place: PlaceModel,
+    place_data: PlaceUpdateRequestSchema,
 ) -> PlaceModel:
     update_data = place_data.model_dump(
         exclude_unset=True,
@@ -278,8 +275,8 @@ async def update_place(
 
 
 async def delete_place(
-        db: AsyncSession,
-        place: PlaceModel,
+    db: AsyncSession,
+    place: PlaceModel,
 ) -> None:
     await db.delete(place)
     await db.commit()

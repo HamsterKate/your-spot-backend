@@ -5,25 +5,19 @@ tests/auth/* work as-is.
 
 Extra dev dependency:  poetry add --group dev aiosqlite
 """
+
 import pytest
 import pytest_asyncio
 from uuid import UUID
 from datetime import datetime, timedelta, timezone
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, update
-from sqlalchemy.ext.asyncio import (
-    async_sessionmaker,
-    create_async_engine
-)
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 import app.auth.models  # noqa: F401  (register tables on Base.metadata)
 import app.users.models  # noqa: F401
-from app.places.models import (
-    CategoryModel,
-    PlaceModel,
-    TagModel
-)
+from app.places.models import CategoryModel, PlaceModel, TagModel
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
@@ -44,12 +38,7 @@ async def _add_model(db_session, model_cls, **fields):
     return instance
 
 
-async def _create_place(
-        client,
-        auth_headers,
-        place_payload,
-        **overrides
-) -> dict:
+async def _create_place(client, auth_headers, place_payload, **overrides) -> dict:
     """POST /places with the base payload plus overrides;
     return the JSON body."""
     response = await client.post(
@@ -62,12 +51,12 @@ async def _create_place(
 
 
 async def _create_many_places(
-        client,
-        auth_headers,
-        place_payload,
-        db_session,
-        name_prefix: str,
-        **overrides,
+    client,
+    auth_headers,
+    place_payload,
+    db_session,
+    name_prefix: str,
+    **overrides,
 ) -> list[dict]:
     """Create MANY_PLACES_COUNT places, oldest first,
     with explicit created_at.
@@ -79,16 +68,16 @@ async def _create_many_places(
     places = []
     for i in range(MANY_PLACES_COUNT):
         created = await _create_place(
-            client, auth_headers, place_payload,
+            client,
+            auth_headers,
+            place_payload,
             name=f"{name_prefix} {i}",
             **overrides,
         )
         await db_session.execute(
             update(PlaceModel)
             .where(PlaceModel.id == UUID(created["id"]))
-            .values(
-                created_at=MANY_PLACES_BASE_TIME + timedelta(minutes=i)
-            )
+            .values(created_at=MANY_PLACES_BASE_TIME + timedelta(minutes=i))
         )
         places.append(created)
     await db_session.commit()
@@ -117,10 +106,7 @@ async def db_session():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    session_maker = async_sessionmaker(
-        engine,
-        expire_on_commit=False
-    )
+    session_maker = async_sessionmaker(engine, expire_on_commit=False)
     async with session_maker() as session:
         yield session
 
@@ -134,8 +120,7 @@ async def client(db_session):
 
     app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test/api/v1"
+        transport=ASGITransport(app=app), base_url="http://test/api/v1"
     ) as http_client:
         yield http_client
     app.dependency_overrides.clear()
@@ -155,10 +140,7 @@ def register_payload() -> dict:
 
 @pytest_asyncio.fixture
 async def registered_user(client, register_payload) -> dict:
-    response = await client.post(
-        "/auth/register",
-        json=register_payload
-    )
+    response = await client.post("/auth/register", json=register_payload)
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -228,10 +210,7 @@ async def place(client, auth_headers, place_payload) -> dict:
 
 @pytest_asyncio.fixture
 async def searchable_places(
-        client,
-        auth_headers,
-        place_payload,
-        place
+    client, auth_headers, place_payload, place
 ) -> dict[str, str]:
     names = {
         "park": "Central Park",
@@ -242,39 +221,28 @@ async def searchable_places(
     }
     ids = {"default": place["id"]}
     for key, name in names.items():
-        created = await _create_place(
-            client,
-            auth_headers,
-            place_payload,
-            name=name
-        )
+        created = await _create_place(client, auth_headers, place_payload, name=name)
         ids[key] = created["id"]
     return ids
 
 
 @pytest_asyncio.fixture
-async def place_cafe(
+async def place_cafe(client, auth_headers, place_payload, category_cafe) -> dict:
+    return await _create_place(
         client,
         auth_headers,
         place_payload,
-        category_cafe
-) -> dict:
-    return await _create_place(
-        client, auth_headers, place_payload,
         name="Blue Bottle Coffee",
         category_ids=[str(category_cafe.id)],
     )
 
 
 @pytest_asyncio.fixture
-async def place_park(
+async def place_park(client, auth_headers, place_payload, category_park) -> dict:
+    return await _create_place(
         client,
         auth_headers,
         place_payload,
-        category_park
-) -> dict:
-    return await _create_place(
-        client, auth_headers, place_payload,
         name="Central Park",
         category_ids=[str(category_park.id)],
     )
@@ -282,14 +250,12 @@ async def place_park(
 
 @pytest_asyncio.fixture
 async def place_cafe_and_park(
+    client, auth_headers, place_payload, category_cafe, category_park
+) -> dict:
+    return await _create_place(
         client,
         auth_headers,
         place_payload,
-        category_cafe,
-        category_park
-) -> dict:
-    return await _create_place(
-        client, auth_headers, place_payload,
         name="Park Cafe",
         category_ids=[str(category_cafe.id), str(category_park.id)],
     )
@@ -297,15 +263,14 @@ async def place_cafe_and_park(
 
 @pytest_asyncio.fixture
 async def many_cafe_places(
-        client,
-        auth_headers,
-        place_payload,
-        category_cafe,
-        db_session
+    client, auth_headers, place_payload, category_cafe, db_session
 ) -> list[dict]:
     """25 cafe places, oldest first, with explicit created_at values."""
     return await _create_many_places(
-        client, auth_headers, place_payload, db_session,
+        client,
+        auth_headers,
+        place_payload,
+        db_session,
         name_prefix="Cafe",
         category_ids=[str(category_cafe.id)],
     )
@@ -313,15 +278,14 @@ async def many_cafe_places(
 
 @pytest_asyncio.fixture
 async def many_outdoor_places(
-        client,
-        auth_headers,
-        place_payload,
-        tag_outdoor,
-        db_session
+    client, auth_headers, place_payload, tag_outdoor, db_session
 ) -> list[dict]:
     """25 places with the 'Outdoor' tag, oldest first, explicit created_at."""
     return await _create_many_places(
-        client, auth_headers, place_payload, db_session,
+        client,
+        auth_headers,
+        place_payload,
+        db_session,
         name_prefix="Outdoor",
         tag_ids=[str(tag_outdoor.id)],
     )
@@ -329,12 +293,7 @@ async def many_outdoor_places(
 
 @pytest_asyncio.fixture
 async def tagged_places(
-        client,
-        auth_headers,
-        place_payload,
-        tag_outdoor,
-        tag_wifi,
-        tag_pets
+    client, auth_headers, place_payload, tag_outdoor, tag_wifi, tag_pets
 ) -> dict[str, dict]:
     """Four places covering every tag combination we care about.
 
@@ -352,7 +311,9 @@ async def tagged_places(
     }
     return {
         key: await _create_place(
-            client, auth_headers, place_payload,
+            client,
+            auth_headers,
+            place_payload,
             name=name,
             tag_ids=[str(tag.id) for tag in tags],
         )
