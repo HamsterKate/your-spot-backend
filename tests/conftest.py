@@ -31,6 +31,32 @@ MANY_PLACES_BASE_TIME = datetime(2024, 1, 1, tzinfo=timezone.utc)
 # --------------------------------------------------------------------------
 # Plain helpers (not fixtures)
 # --------------------------------------------------------------------------
+def _json_or_fail(response, expected_status) -> dict:
+    """Assert the status code (showing the body on failure); return the JSON."""
+    assert response.status_code == expected_status, response.text
+    return response.json()
+
+
+def _ids(items) -> list[str]:
+    """Model instances -> list of stringified ids, as the API expects."""
+    return [str(item.id) for item in items]
+
+
+async def _register(client, payload) -> dict:
+    return _json_or_fail(await client.post("/auth/register", json=payload), 201)
+
+
+async def _login(client, email, password) -> dict:
+    response = await client.post(
+        "/auth/login", json={"email": email, "password": password}
+    )
+    return _json_or_fail(response, 200)
+
+
+def _bearer(tokens) -> dict:
+    return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+
 async def _add_model(db_session, model_cls, **fields):
     """Insert one row and commit it."""
     instance = model_cls(**fields)
@@ -39,50 +65,50 @@ async def _add_model(db_session, model_cls, **fields):
     return instance
 
 
-async def _create_place(client, auth_headers, place_payload, **overrides) -> dict:
-    """POST /places with the base payload plus overrides;
-    return the JSON body."""
-    response = await client.post(
-        "/places",
-        json={**place_payload, **overrides},
-        headers=auth_headers,
+def _named_model_fixture(fixture_name, model_cls, name):
+    """Build a fixture that inserts one `model_cls(name=name)` row."""
+
+    @pytest_asyncio.fixture(name=fixture_name)
+    async def _fixture(db_session):
+        return await _add_model(db_session, model_cls, name=name)
+
+    return _fixture
+
+
+# --- ways to look at the same place --------------------------------------
+async def _as_created(client, created, viewer, owner):
+    return created
+
+
+async def _as_fetched(client, created, viewer, owner):
+    response = await client.get(f"/places/{created['id']}", headers=viewer)
+    return _json_or_fail(response, 200)
+
+
+async def _as_listed(client, created, viewer, owner):
+    response = await client.get("/places", headers=viewer)
+    body = _json_or_fail(response, 200)
+    items = body["items"] if isinstance(body, dict) else body
+    return next(item for item in items if item["id"] == created["id"])
+
+
+async def _as_updated(client, created, viewer, owner):
+    # Only the owner may PATCH, so this always uses the owner's headers.
+    # It touches an unrelated field, so the field under test must survive a PATCH.
+    response = await client.patch(
+        f"/places/{created['id']}",
+        json={"description": "Changed by the view_place fixture."},
+        headers=owner,
     )
-    assert response.status_code == 201, response.text
-    return response.json()
+    return _json_or_fail(response, 200)
 
 
-async def _create_many_places(
-    client,
-    auth_headers,
-    place_payload,
-    db_session,
-    name_prefix: str,
-    **overrides,
-) -> list[dict]:
-    """Create MANY_PLACES_COUNT places, oldest first,
-    with explicit created_at.
-
-    created_at is set directly in the DB because
-    server-generated timestamps can collide, which
-    would make the ordering assertions nondeterministic.
-    """
-    places = []
-    for i in range(MANY_PLACES_COUNT):
-        created = await _create_place(
-            client,
-            auth_headers,
-            place_payload,
-            name=f"{name_prefix} {i}",
-            **overrides,
-        )
-        await db_session.execute(
-            update(PlaceModel)
-            .where(PlaceModel.id == UUID(created["id"]))
-            .values(created_at=MANY_PLACES_BASE_TIME + timedelta(minutes=i))
-        )
-        places.append(created)
-    await db_session.commit()
-    return places
+_VIEWS = {
+    "created": _as_created,
+    "fetched": _as_fetched,
+    "listed": _as_listed,
+    "updated": _as_updated,
+}
 
 
 # --------------------------------------------------------------------------
@@ -142,59 +168,45 @@ def register_payload() -> dict:
 
 @pytest_asyncio.fixture
 async def registered_user(client, register_payload) -> dict:
-    response = await client.post("/auth/register", json=register_payload)
-    assert response.status_code == 201, response.text
-    return response.json()
+    return await _register(client, register_payload)
 
 
 @pytest_asyncio.fixture
 async def tokens(client, registered_user, register_payload) -> dict:
-    response = await client.post(
-        "/auth/login",
-        json={
-            "email": register_payload["email"],
-            "password": register_payload["password"],
-        },
-    )
-    assert response.status_code == 200, response.text
-    return response.json()
+    return await _login(client, register_payload["email"], register_payload["password"])
 
 
 @pytest.fixture
 def auth_headers(tokens) -> dict:
-    return {"Authorization": f"Bearer {tokens['access_token']}"}
+    return _bearer(tokens)
+
+
+@pytest_asyncio.fixture
+async def make_auth_headers(client):
+    """Factory: register + log in an extra user, return their auth headers."""
+
+    async def _make(display_name: str, email: str, password: str = PASSWORD) -> dict:
+        await _register(
+            client,
+            {"display_name": display_name, "email": email, "password": password},
+        )
+        return _bearer(await _login(client, email, password))
+
+    return _make
 
 
 # --------------------------------------------------------------------------
 # Category and tag fixtures
 # --------------------------------------------------------------------------
-@pytest_asyncio.fixture
-async def category_cafe(db_session) -> CategoryModel:
-    return await _add_model(db_session, CategoryModel, name="Cafe")
-
-
-@pytest_asyncio.fixture
-async def category_park(db_session) -> CategoryModel:
-    return await _add_model(db_session, CategoryModel, name="Park")
-
-
-@pytest_asyncio.fixture
-async def tag_outdoor(db_session) -> TagModel:
-    return await _add_model(db_session, TagModel, name="Outdoor")
-
-
-@pytest_asyncio.fixture
-async def tag_wifi(db_session) -> TagModel:
-    return await _add_model(db_session, TagModel, name="Wi-Fi")
-
-
-@pytest_asyncio.fixture
-async def tag_pets(db_session) -> TagModel:
-    return await _add_model(db_session, TagModel, name="Pet friendly")
+category_cafe = _named_model_fixture("category_cafe", CategoryModel, "Cafe")
+category_park = _named_model_fixture("category_park", CategoryModel, "Park")
+tag_outdoor = _named_model_fixture("tag_outdoor", TagModel, "Outdoor")
+tag_wifi = _named_model_fixture("tag_wifi", TagModel, "Wi-Fi")
+tag_pets = _named_model_fixture("tag_pets", TagModel, "Pet friendly")
 
 
 # --------------------------------------------------------------------------
-# Place fixtures
+# Place factories
 # --------------------------------------------------------------------------
 @pytest.fixture
 def place_payload() -> dict:
@@ -202,18 +214,70 @@ def place_payload() -> dict:
         "name": "Test Place",
         "description": "A place used by endpoint tests.",
         "address": "123 Test Street",
+        "opening_hours": {"opens_at": "09:00", "closes_at": "18:00"},
     }
 
 
+@pytest.fixture
+def post_place(client, auth_headers, place_payload):
+    """POST /places with the base payload + overrides; returns the Response."""
+
+    async def _post(headers=None, **overrides):
+        return await client.post(
+            "/places",
+            json={**place_payload, **overrides},
+            headers=headers or auth_headers,
+        )
+
+    return _post
+
+
+@pytest.fixture
+def create_place(post_place):
+    """Like post_place, but asserts 201 and returns the JSON body."""
+
+    async def _create(**kwargs):
+        return _json_or_fail(await post_place(**kwargs), 201)
+
+    return _create
+
+
+@pytest.fixture
+def create_many_places(create_place, db_session):
+    """Factory: create MANY_PLACES_COUNT places, oldest first,
+    with explicit created_at.
+
+    created_at is set directly in the DB because
+    server-generated timestamps can collide, which
+    would make the ordering assertions nondeterministic.
+    """
+
+    async def _create_many(name_prefix: str, **overrides) -> list[dict]:
+        places = []
+        for i in range(MANY_PLACES_COUNT):
+            created = await create_place(name=f"{name_prefix} {i}", **overrides)
+            await db_session.execute(
+                update(PlaceModel)
+                .where(PlaceModel.id == UUID(created["id"]))
+                .values(created_at=MANY_PLACES_BASE_TIME + timedelta(minutes=i))
+            )
+            places.append(created)
+        await db_session.commit()
+        return places
+
+    return _create_many
+
+
+# --------------------------------------------------------------------------
+# Place fixtures
+# --------------------------------------------------------------------------
 @pytest_asyncio.fixture
-async def place(client, auth_headers, place_payload) -> dict:
-    return await _create_place(client, auth_headers, place_payload)
+async def place(create_place) -> dict:
+    return await create_place()
 
 
 @pytest_asyncio.fixture
-async def searchable_places(
-    client, auth_headers, place_payload, place
-) -> dict[str, str]:
+async def searchable_places(create_place, place) -> dict[str, str]:
     names = {
         "park": "Central Park",
         "cafe": "Park Side Cafe",
@@ -223,79 +287,44 @@ async def searchable_places(
     }
     ids = {"default": place["id"]}
     for key, name in names.items():
-        created = await _create_place(client, auth_headers, place_payload, name=name)
-        ids[key] = created["id"]
+        ids[key] = (await create_place(name=name))["id"]
     return ids
 
 
 @pytest_asyncio.fixture
-async def place_cafe(client, auth_headers, place_payload, category_cafe) -> dict:
-    return await _create_place(
-        client,
-        auth_headers,
-        place_payload,
-        name="Blue Bottle Coffee",
-        category_ids=[str(category_cafe.id)],
+async def place_cafe(create_place, category_cafe) -> dict:
+    return await create_place(
+        name="Blue Bottle Coffee", category_ids=_ids([category_cafe])
     )
 
 
 @pytest_asyncio.fixture
-async def place_park(client, auth_headers, place_payload, category_park) -> dict:
-    return await _create_place(
-        client,
-        auth_headers,
-        place_payload,
-        name="Central Park",
-        category_ids=[str(category_park.id)],
+async def place_park(create_place, category_park) -> dict:
+    return await create_place(name="Central Park", category_ids=_ids([category_park]))
+
+
+@pytest_asyncio.fixture
+async def place_cafe_and_park(create_place, category_cafe, category_park) -> dict:
+    return await create_place(
+        name="Park Cafe", category_ids=_ids([category_cafe, category_park])
     )
 
 
 @pytest_asyncio.fixture
-async def place_cafe_and_park(
-    client, auth_headers, place_payload, category_cafe, category_park
-) -> dict:
-    return await _create_place(
-        client,
-        auth_headers,
-        place_payload,
-        name="Park Cafe",
-        category_ids=[str(category_cafe.id), str(category_park.id)],
-    )
-
-
-@pytest_asyncio.fixture
-async def many_cafe_places(
-    client, auth_headers, place_payload, category_cafe, db_session
-) -> list[dict]:
+async def many_cafe_places(create_many_places, category_cafe) -> list[dict]:
     """25 cafe places, oldest first, with explicit created_at values."""
-    return await _create_many_places(
-        client,
-        auth_headers,
-        place_payload,
-        db_session,
-        name_prefix="Cafe",
-        category_ids=[str(category_cafe.id)],
-    )
+    return await create_many_places("Cafe", category_ids=_ids([category_cafe]))
 
 
 @pytest_asyncio.fixture
-async def many_outdoor_places(
-    client, auth_headers, place_payload, tag_outdoor, db_session
-) -> list[dict]:
+async def many_outdoor_places(create_many_places, tag_outdoor) -> list[dict]:
     """25 places with the 'Outdoor' tag, oldest first, explicit created_at."""
-    return await _create_many_places(
-        client,
-        auth_headers,
-        place_payload,
-        db_session,
-        name_prefix="Outdoor",
-        tag_ids=[str(tag_outdoor.id)],
-    )
+    return await create_many_places("Outdoor", tag_ids=_ids([tag_outdoor]))
 
 
 @pytest_asyncio.fixture
 async def tagged_places(
-    client, auth_headers, place_payload, tag_outdoor, tag_wifi, tag_pets
+    create_place, tag_outdoor, tag_wifi, tag_pets
 ) -> dict[str, dict]:
     """Four places covering every tag combination we care about.
 
@@ -312,12 +341,21 @@ async def tagged_places(
         "untagged": ("Plain Place", []),
     }
     return {
-        key: await _create_place(
-            client,
-            auth_headers,
-            place_payload,
-            name=name,
-            tag_ids=[str(tag.id) for tag in tags],
-        )
+        key: await create_place(name=name, tag_ids=_ids(tags))
         for key, (name, tags) in specs.items()
     }
+
+
+@pytest.fixture(params=list(_VIEWS))
+def view_place(request, client, auth_headers):
+    """Async fn: created place -> the same place as seen via one endpoint.
+
+    `headers` is the viewer (defaults to the owner). Updates are always
+    performed by the owner.
+    """
+    reader = _VIEWS[request.param]
+
+    async def _view(created, headers=None):
+        return await reader(client, created, headers or auth_headers, auth_headers)
+
+    return _view

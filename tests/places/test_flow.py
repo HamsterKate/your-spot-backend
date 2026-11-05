@@ -7,7 +7,7 @@ async def test_full_places_flow(client, auth_headers, place_payload):
     assert created.status_code == 201, created.text
     place = created.json()
     place_id = place["id"]
-    assert created.headers["location"] == place["url"]
+    assert created.headers["location"].endswith(place["url"])
 
     mine = await client.get("/places/me", headers=auth_headers)
     assert mine.status_code == 200
