@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.users.models import UserModel
 
 
 class PlaceModel(Base):
@@ -49,6 +50,11 @@ class PlaceModel(Base):
         index=True,
         nullable=False,
     )
+    creator: Mapped["UserModel"] = relationship(
+        foreign_keys=[creator_id],
+        viewonly=True,
+        lazy="raise",
+    )
     name: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
@@ -57,7 +63,7 @@ class PlaceModel(Base):
     address: Mapped[str | None] = mapped_column(String(500))
     latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
-    opening_hours: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    opening_hours: Mapped[JSONB | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -140,6 +146,10 @@ class PlacePhotoModel(Base):
     place: Mapped["PlaceModel"] = relationship(
         back_populates="photos",
     )
+
+    @property
+    def creator_name(self) -> str:
+        return self.creator.display_name
 
 
 class CategoryModel(Base):

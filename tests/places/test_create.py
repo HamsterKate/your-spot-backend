@@ -6,7 +6,8 @@ async def test_create_place_returns_detail_and_location_header(
     assert response.status_code == 201, response.text
     data = response.json()
     assert data["name"] == place_payload["name"]
-    assert data["opening_hours"] is None
+    assert data["opening_hours"] is not None
+    assert "opens_at" in data["opening_hours"]
 
 
 async def test_create_place_requires_authentication(client, place_payload):

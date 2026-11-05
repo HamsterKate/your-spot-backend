@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from uuid import UUID
 from typing_extensions import Self
 
@@ -8,7 +8,11 @@ from pydantic import (
     Field,
     field_validator,
     model_validator,
+    field_serializer,
+    computed_field,
 )
+
+from app.core.config import settings
 from app.taxonomy.schemas import CategoryResponseSchema, TagResponseSchema
 
 
@@ -27,13 +31,35 @@ def normalize_tags(tags: list[str]) -> list[str]:
     return normalized_tags
 
 
+class OpeningHoursSchema(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    opens_at: time | None = Field(examples=["09:00"], default=None)
+    closes_at: time | None = Field(examples=["18:00"], default=None)
+
+    @field_serializer("opens_at", "closes_at")
+    def serialize_time(self, value: time | None) -> str | None:
+        if isinstance(value, time):
+            return value.strftime("%H:%M")
+        return value
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "OpeningHoursSchema":
+        if self.opens_at is None or self.closes_at is None:
+            raise ValueError("Opening hour and closing hour are both required")
+
+        if self.opens_at >= self.closes_at:
+            raise ValueError("Opening hour must be earlier than closing hour")
+        return self
+
+
 class PlaceCreateRequestSchema(BaseModel):
     name: str
     description: str | None = None
     address: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
-    opening_hours: dict[str, object] | None = None
+    opening_hours: OpeningHoursSchema | None = None
     category_ids: list[UUID] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
@@ -96,7 +122,7 @@ class PlaceUpdateRequestSchema(BaseModel):
     address: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
-    opening_hours: dict[str, object] | None = None
+    opening_hours: OpeningHoursSchema | None = None
     category_ids: list[UUID] | None = None
     tags: list[str] | None = None
 
@@ -187,10 +213,15 @@ class PlaceResponseSchema(BaseModel):
     address: str | None
     latitude: float | None
     longitude: float | None
-    opening_hours: dict[str, object] | None
+    opening_hours: OpeningHoursSchema | None = None
     created_at: datetime
     updated_at: datetime
     categories: list[CategoryResponseSchema]
     tags: list[TagResponseSchema]
     photos: list[PlacePhotoResponseSchema] = Field(default_factory=list)
-    url: str | None = None
+    creator_name: str
+
+    @computed_field
+    @property
+    def url(self) -> str:
+        return f"{settings.api_v1_prefix}/places/{self.id}"
