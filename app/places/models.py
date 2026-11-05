@@ -92,6 +92,10 @@ class PlaceModel(Base):
         lazy="selectin",
     )
 
+    @property
+    def creator_name(self) -> str:
+        return self.creator.display_name
+
 
 class PlacePhotoModel(Base):
     __tablename__ = "place_photos"
@@ -146,10 +150,6 @@ class PlacePhotoModel(Base):
     place: Mapped["PlaceModel"] = relationship(
         back_populates="photos",
     )
-
-    @property
-    def creator_name(self) -> str:
-        return self.creator.display_name
 
 
 class CategoryModel(Base):
