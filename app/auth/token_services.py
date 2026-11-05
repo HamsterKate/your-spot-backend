@@ -5,7 +5,11 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import RefreshTokenModel, AccessTokenModel
-from app.auth.schemas import TokenResponseSchema, RefreshTokenRequestSchema
+from app.auth.schemas import (
+    TokenResponseSchema,
+    RefreshTokenRequestSchema,
+    LoginRefreshResponseSchema,
+)
 from app.auth.security import (
     TokenType,
     create_token,
@@ -81,7 +85,7 @@ async def regenerate_tokens(db: AsyncSession, user: UserModel) -> TokenResponseS
 async def refresh_tokens(
     db: AsyncSession,
     refresh_data: RefreshTokenRequestSchema,
-) -> TokenResponseSchema:
+) -> LoginRefreshResponseSchema:
     try:
         payload = decode_token(
             refresh_data.refresh_token,
@@ -108,4 +112,10 @@ async def refresh_tokens(
     if refresh_token_model is None or user is None:
         raise InvalidRefreshTokenError
 
-    return await regenerate_tokens(db, user)
+    tokens = await regenerate_tokens(db, user)
+    return LoginRefreshResponseSchema(
+        **tokens.model_dump(),
+        id=user.id,
+        display_name=user.display_name,
+        email=user.email,
+    )

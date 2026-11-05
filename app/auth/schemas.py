@@ -60,10 +60,11 @@ class TokenResponseSchema(BaseModel):
     token_type: str = "bearer"
 
 
-class RefreshTokenRequestSchema(BaseModel):
-    refresh_token: str
-
-
-class LoginResponseSchema(TokenResponseSchema):
+class LoginRefreshResponseSchema(TokenResponseSchema):
+    id: UUID
     display_name: str
     email: EmailStr
+
+
+class RefreshTokenRequestSchema(BaseModel):
+    refresh_token: str

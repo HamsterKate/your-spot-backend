@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from app.places.models import (
     CategoryModel,
@@ -51,6 +51,7 @@ async def get_place_with_taxonomy(
             selectinload(PlaceModel.categories),
             selectinload(PlaceModel.tags),
             selectinload(PlaceModel.photos),
+            joinedload(PlaceModel.creator),
         )
         .where(PlaceModel.id == place_id)
     )
@@ -179,6 +180,7 @@ async def get_places_for_guest(
         selectinload(PlaceModel.categories),
         selectinload(PlaceModel.tags),
         selectinload(PlaceModel.photos),
+        joinedload(PlaceModel.creator),
     )
 
     if search and (term := search.strip()):
@@ -217,6 +219,7 @@ async def get_current_user_places(
             selectinload(PlaceModel.categories),
             selectinload(PlaceModel.tags),
             selectinload(PlaceModel.photos),
+            joinedload(PlaceModel.creator),
         )
         .where(PlaceModel.creator_id == user.id)
         .order_by(PlaceModel.created_at.desc(), PlaceModel.id.desc())
@@ -234,6 +237,7 @@ async def get_place_for_guest(db: AsyncSession, place_id: UUID) -> PlaceModel | 
             selectinload(PlaceModel.categories),
             selectinload(PlaceModel.tags),
             selectinload(PlaceModel.photos),
+            joinedload(PlaceModel.creator),
         )
         .where(
             PlaceModel.id == place_id,
@@ -252,6 +256,7 @@ async def get_current_user_place(
             selectinload(PlaceModel.categories),
             selectinload(PlaceModel.tags),
             selectinload(PlaceModel.photos),
+            joinedload(PlaceModel.creator),
         )
         .where(
             PlaceModel.id == place_id,
@@ -290,7 +295,7 @@ async def update_place(
     await db.commit()
     await db.refresh(
         place,
-        attribute_names=["updated_at", "categories", "tags", "photos"],
+        attribute_names=["updated_at", "categories", "tags", "photos", "creator"],
     )
 
     return place
