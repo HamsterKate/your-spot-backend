@@ -54,6 +54,8 @@ INVALID_HOURS = [
     pytest.param({"opens_at": "9am", "closes_at": "6pm"}, id="bad-format"),
     pytest.param({"opens_at": "25:00", "closes_at": "26:00"}, id="out-of-range"),
     pytest.param("09:00-18:00", id="string-instead-of-object"),
+    pytest.param({}, id="empty-object"),
+    pytest.param({"random_field": "random_value"}, id="random-object"),
 ]
 
 

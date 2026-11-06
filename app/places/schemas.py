@@ -45,11 +45,12 @@ class OpeningHoursSchema(BaseModel):
 
     @model_validator(mode="after")
     def validate_range(self) -> "OpeningHoursSchema":
-        if self.opens_at is None or self.closes_at is None:
+        if (self.opens_at is None) != (self.closes_at is None):
             raise ValueError("Opening hour and closing hour are both required")
 
-        if self.opens_at >= self.closes_at:
+        if self.opens_at is not None and self.opens_at >= self.closes_at:
             raise ValueError("Opening hour must be earlier than closing hour")
+
         return self
 
 
