@@ -15,12 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
 from app.db.session import get_db
-from app.places.models import PlaceModel
-from app.places.schemas import (
-    PlaceCreateRequestSchema,
-    PlaceResponseSchema,
-    PlaceUpdateRequestSchema,
-)
 from app.places.services import (
     CategoryNotFoundError,
     create_place,
@@ -47,15 +41,9 @@ from app.places.schemas import (
     PlaceUpdateRequestSchema,
 )
 
+from app.core.config import settings
+
 router = APIRouter(prefix="/places", tags=["places"])
-
-
-ALLOWED_PHOTO_CONTENT_TYPES = {
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-}
-MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024
 
 
 def build_photo_response(
@@ -182,7 +170,7 @@ async def upload_place_photo(
             detail="Place not found",
         )
 
-    if file.content_type not in ALLOWED_PHOTO_CONTENT_TYPES:
+    if file.content_type not in settings.allowed_photo_content_types:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only JPEG, PNG, and WebP images are supported",
@@ -197,7 +185,7 @@ async def upload_place_photo(
             detail="Photo file cannot be empty",
         )
 
-    if len(content) > MAX_PHOTO_SIZE_BYTES:
+    if len(content) > settings.max_photo_size_bytes:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="Photo size must not exceed 5 MB",
@@ -223,7 +211,7 @@ async def upload_place_photo(
     except PlacePhotoLimitExceededError as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A place can contain no more than 10 photos",
+            detail="A place can contain no more than 5 photos",
         ) from error
     except StorageError as error:
         raise HTTPException(
