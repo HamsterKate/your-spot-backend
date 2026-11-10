@@ -25,7 +25,7 @@ class CategoryNotFoundError(Exception):
     pass
 
 
-MAX_PHOTOS_PER_PLACE = 10
+MAX_PHOTOS_PER_PLACE = 5
 
 
 class PlacePhotoLimitExceededError(Exception):

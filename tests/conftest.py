@@ -269,6 +269,56 @@ def create_many_places(create_place, db_session):
 
 
 # --------------------------------------------------------------------------
+# In-memory fake of the MinIO helpers
+# --------------------------------------------------------------------------
+JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+WEBP = b"RIFF" + b"\x00\x00\x00\x00" + b"WEBP" + b"\x00" * 64
+GIF = b"GIF89a" + b"\x00" * 64
+
+
+class FakeStorage:
+    def __init__(self):
+        self.objects: dict[str, tuple[bytes, str]] = {}
+        self.fail_upload = False
+        self.fail_delete = False
+        self.fail_get = False
+
+    def upload_object(self, object_key, content, content_type):
+        if self.fail_upload:
+            raise RuntimeError("upload failed")
+        self.objects[object_key] = (content, content_type)
+
+    def delete_object(self, object_key):
+        if self.fail_delete:
+            raise RuntimeError("delete failed")
+        self.objects.pop(object_key, None)
+
+    def get_object_content(self, object_key):
+        if self.fail_get:
+            raise RuntimeError("get failed")
+        return self.objects[object_key][0]
+
+
+# --------------------------------------------------------------------------
+# User helper functions
+# --------------------------------------------------------------------------
+async def get_me(client, headers) -> dict:
+    response = await client.get("/users/me", headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def avatar_file(content=JPEG, content_type="image/jpeg", name="avatar.jpg"):
+    return {"file": (name, content, content_type)}
+
+
+def avatar_path(body: dict) -> str:
+    """Path of the avatar endpoint, taken from the avatar_url in a response."""
+    return "/users/avatars/" + body["avatar_url"].rsplit("/", 1)[-1]
+
+
+# --------------------------------------------------------------------------
 # Place fixtures
 # --------------------------------------------------------------------------
 @pytest_asyncio.fixture
@@ -359,3 +409,48 @@ def view_place(request, client, auth_headers):
         return await reader(client, created, headers or auth_headers, auth_headers)
 
     return _view
+
+
+# --------------------------------------------------------------------------
+# Storage fixtures
+# --------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def storage(monkeypatch) -> FakeStorage:
+    """Patch the names imported into app.users.services (not app.storage.minio)."""
+    fake = FakeStorage()
+    monkeypatch.setattr("app.users.services.upload_object", fake.upload_object)
+    monkeypatch.setattr("app.users.services.delete_object", fake.delete_object)
+    monkeypatch.setattr(
+        "app.users.services.get_object_content", fake.get_object_content
+    )
+    return fake
+
+
+# --------------------------------------------------------------------------
+# Users fixtures
+# --------------------------------------------------------------------------
+@pytest.fixture
+def patch_me(client, auth_headers):
+    """PATCH /users/me as the current user; returns the Response."""
+
+    async def _patch(data=None, files=None, headers=None):
+        return await client.patch(
+            "/users/me",
+            data=data or {},
+            files=files,
+            headers=headers or auth_headers,
+        )
+
+    return _patch
+
+
+@pytest.fixture
+def upload_avatar(patch_me):
+    """Upload an avatar as the current user, assert 200, return the JSON."""
+
+    async def _upload(content=JPEG, content_type="image/jpeg"):
+        response = await patch_me(files=avatar_file(content, content_type))
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    return _upload

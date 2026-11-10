@@ -27,6 +27,13 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    allowed_photo_content_types: set[str] = {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    }
+    max_photo_size_bytes: int = 5 * 1024 * 1024
+
 
 @lru_cache
 def get_settings() -> Settings:

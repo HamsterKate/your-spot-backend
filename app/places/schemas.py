@@ -32,6 +32,8 @@ def normalize_tags(tags: list[str]) -> list[str]:
 
 
 class OpeningHoursSchema(BaseModel):
+    """Lenient: used for responses / reading what's already in the DB."""
+
     model_config = ConfigDict(extra="ignore")
 
     opens_at: time | None = Field(examples=["09:00"], default=None)
@@ -43,14 +45,19 @@ class OpeningHoursSchema(BaseModel):
             return value.strftime("%H:%M")
         return value
 
+
+class OpeningHoursCreateUpdateSchema(OpeningHoursSchema):
+    """Strict: used only for incoming requests."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    opens_at: time = Field(examples=["09:00"])
+    closes_at: time = Field(examples=["18:00"])
+
     @model_validator(mode="after")
-    def validate_range(self) -> "OpeningHoursSchema":
-        if (self.opens_at is None) != (self.closes_at is None):
-            raise ValueError("Opening hour and closing hour are both required")
-
-        if self.opens_at is not None and self.opens_at >= self.closes_at:
+    def validate_range(self) -> "OpeningHoursCreateUpdateSchema":
+        if self.opens_at >= self.closes_at:
             raise ValueError("Opening hour must be earlier than closing hour")
-
         return self
 
 
@@ -60,7 +67,7 @@ class PlaceCreateRequestSchema(BaseModel):
     address: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
-    opening_hours: OpeningHoursSchema | None = None
+    opening_hours: OpeningHoursCreateUpdateSchema | None = None
     category_ids: list[UUID] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
@@ -123,7 +130,7 @@ class PlaceUpdateRequestSchema(BaseModel):
     address: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
-    opening_hours: OpeningHoursSchema | None = None
+    opening_hours: OpeningHoursCreateUpdateSchema | None = None
     category_ids: list[UUID] | None = None
     tags: list[str] | None = None
 

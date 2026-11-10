@@ -46,3 +46,13 @@ class UserModel(Base):
         onupdate=func.now(),
         nullable=False,
     )
+    avatar_object_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+    avatar_content_type: Mapped[str] = mapped_column(
+        String(100),
+        nullable=True,
+    )
