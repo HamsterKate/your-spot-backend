@@ -5,6 +5,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 
+from app.places.helpers import validate_location
 from app.places.models import (
     CategoryModel,
     PlaceCategoryModel,
@@ -273,6 +274,13 @@ async def update_place(
     update_data = place_data.model_dump(
         exclude_unset=True,
         exclude={"category_ids", "tags"},
+    )
+
+    # Missing fields retain their stored values.
+    validate_location(
+        address=update_data.get("address", place.address),
+        latitude=update_data.get("latitude", place.latitude),
+        longitude=update_data.get("longitude", place.longitude),
     )
 
     for field_name, value in update_data.items():

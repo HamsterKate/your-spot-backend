@@ -85,3 +85,4 @@ async def login_user(
 
 async def logout_user(db: AsyncSession, current_user: UserModel):
     await delete_user_tokens(db, current_user.id)
+    await db.commit()

@@ -1,36 +1,30 @@
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    StringConstraints,
+    field_validator,
+)
 
 
 class RegisterRequestSchema(BaseModel):
-    display_name: str
+    display_name: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=2, max_length=50)
+    ]
     email: EmailStr
-    password: str
-
-    @field_validator("display_name")
-    @classmethod
-    def validate_display_name(cls, value: str) -> str:
-        display_name = value.strip()
-
-        if not 2 <= len(display_name) <= 100:
-            raise ValueError("Display name must contain from 1 to 100 characters")
-
-        return display_name
+    password: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=8, max_length=128)
+    ]
 
     @field_validator("email")
     @classmethod
     def normalize_email(cls, value: EmailStr) -> EmailStr:
         return value.lower()
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, value: str) -> str:
-        if not 8 <= len(value) <= 128:
-            raise ValueError("Password must contain from 8 to 128 characters")
-
-        return value
 
 
 class UserResponseSchema(BaseModel):

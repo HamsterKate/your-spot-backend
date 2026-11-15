@@ -1,4 +1,5 @@
 from datetime import datetime, time
+from typing import Annotated
 from uuid import UUID
 from typing_extensions import Self
 
@@ -6,6 +7,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    StringConstraints,
     field_validator,
     model_validator,
     field_serializer,
@@ -13,7 +15,13 @@ from pydantic import (
 )
 
 from app.core.config import settings
+from app.places.helpers import validate_location
 from app.taxonomy.schemas import CategoryResponseSchema, TagResponseSchema
+
+PlaceName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)
+]
+PlaceAddress = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
 
 
 def normalize_tags(tags: list[str]) -> list[str]:
@@ -61,26 +69,7 @@ class OpeningHoursCreateUpdateSchema(OpeningHoursSchema):
         return self
 
 
-class PlaceCreateRequestSchema(BaseModel):
-    name: str
-    description: str | None = None
-    address: str | None = None
-    latitude: float | None = Field(default=None, ge=-90, le=90)
-    longitude: float | None = Field(default=None, ge=-180, le=180)
-    opening_hours: OpeningHoursCreateUpdateSchema | None = None
-    category_ids: list[UUID] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, value: str) -> str:
-        name = value.strip()
-
-        if not 1 <= len(name) <= 255:
-            raise ValueError("Name must contain from 1 to 255 characters")
-
-        return name
-
+class PlaceValidationMixin:
     @field_validator("description")
     @classmethod
     def normalize_description(cls, value: str | None) -> str | None:
@@ -91,20 +80,15 @@ class PlaceCreateRequestSchema(BaseModel):
 
     @field_validator("address")
     @classmethod
-    def validate_address(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        address = value.strip()
-
-        if len(address) > 500:
-            raise ValueError("Address must contain no more than 500 characters")
-
-        return address or None
+    def normalize_address(cls, value: str | None) -> str | None:
+        return value or None
 
     @field_validator("category_ids")
     @classmethod
-    def validate_category_ids(cls, value: list[UUID]) -> list[UUID]:
+    def validate_category_ids(cls, value: list[UUID] | None) -> list[UUID] | None:
+        if cls is PlaceUpdateRequestSchema and value is None:
+            return None
+
         if len(value) != len(set(value)):
             raise ValueError("Category IDs must be unique")
 
@@ -112,61 +96,43 @@ class PlaceCreateRequestSchema(BaseModel):
 
     @field_validator("tags")
     @classmethod
-    def validate_tags(cls, value: list[str]) -> list[str]:
+    def validate_tags(cls, value: list[str] | None) -> list[str] | None:
+        if cls is PlaceUpdateRequestSchema and value is None:
+            return None
+
         return normalize_tags(value)
 
     @model_validator(mode="after")
     def validate_location(self) -> Self:
-        if (self.latitude is None) != (self.longitude is None):
-            raise ValueError("latitude and longitude must be provided together")
-        if self.address is None and self.latitude is None:
-            raise ValueError("provide an address, coordinates, or both")
+        if isinstance(self, PlaceUpdateRequestSchema):
+            # validation happens on the merged data in the service layer,
+            # so we skip it here
+            return self
+
+        validate_location(self.address, self.latitude, self.longitude)
         return self
 
 
-class PlaceUpdateRequestSchema(BaseModel):
-    name: str | None = None
+class PlaceCreateRequestSchema(PlaceValidationMixin, BaseModel):
+    name: PlaceName
     description: str | None = None
-    address: str | None = None
+    address: PlaceAddress | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    opening_hours: OpeningHoursCreateUpdateSchema | None = None
+    category_ids: list[UUID] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
+class PlaceUpdateRequestSchema(PlaceValidationMixin, BaseModel):
+    name: PlaceName | None = None
+    description: str | None = None
+    address: PlaceAddress | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     opening_hours: OpeningHoursCreateUpdateSchema | None = None
     category_ids: list[UUID] | None = None
     tags: list[str] | None = None
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        name = value.strip()
-
-        if not 1 <= len(name) <= 255:
-            raise ValueError("Name must contain from 1 to 255 characters")
-
-        return name
-
-    @field_validator("description")
-    @classmethod
-    def normalize_description(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        return value.strip() or None
-
-    @field_validator("address")
-    @classmethod
-    def validate_address(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        address = value.strip()
-
-        if len(address) > 500:
-            raise ValueError("Address must contain at most 500 characters")
-
-        return address or None
 
     @model_validator(mode="after")
     def validate_update_data(self) -> "PlaceUpdateRequestSchema":
@@ -177,25 +143,6 @@ class PlaceUpdateRequestSchema(BaseModel):
             raise ValueError("Name cannot be null")
 
         return self
-
-    @field_validator("category_ids")
-    @classmethod
-    def validate_category_ids(
-        cls,
-        value: list[UUID] | None,
-    ) -> list[UUID] | None:
-        if value is not None and len(value) != len(set(value)):
-            raise ValueError("Category IDs must be unique")
-
-        return value
-
-    @field_validator("tags")
-    @classmethod
-    def validate_tags(cls, value: list[str] | None) -> list[str] | None:
-        if value is None:
-            return None
-
-        return normalize_tags(value)
 
 
 class PlacePhotoResponseSchema(BaseModel):
