@@ -1,126 +1,224 @@
-# Your Spot Backend
+# 📍 Your Spot Backend
 
-Backend API for creating personal locations and sharing them with private groups.
+Backend API for creating, managing, and sharing personal locations with private groups.
 
-## Preconditions
-1. Copy the `.env.example` file to `.env` and fill in the required environment variables:
-    ```bash
-    copy .env.example .env
-    ```
+## ✨ Features
 
-## How to Run the Project Using Docker
+- 🔐 JWT authentication: registration, login, token refresh, and logout
+- 👤 User profile management with avatar upload
+- 📍 Place creation, viewing, updating, and deletion
+- 🔎 Public place search and filtering by category and tags
+- 🏷️ Categories and user-created tags
+- 🖼️ Place photo upload, viewing, ordering, and deletion
+- 👥 Private groups
+- 🗄️ PostgreSQL for application data
+- ☁️ MinIO for images and other media files
+- 📚 Interactive API documentation with Swagger UI
 
-1. Ensure you have Docker and Docker Compose installed on your system.
-2. Navigate to the project root directory.
-3. Build and start the Docker containers:
-   ```bash
-   docker-compose up --build
-   ```
-4. The application will be available at `http://127.0.0.1:8000`.
-5. To see Swagger documentation, visit `http://127.0.0.1:8000/docs`.
+> Swagger is the source of truth for all endpoints, request bodies, and responses.
 
-> **Note:** When you add or change dependencies in `pyproject.toml`, run `poetry lock`
-> and rebuild the image (`docker-compose build web`), otherwise the container will
-> keep using the old dependencies.
+## 🔗 Useful links
 
-### How to Run Tests Using Docker
+### Local environment
 
-1. Ensure the Docker containers are running (see the steps above).
-2. Run the tests inside the Docker container:
-   ```bash
-   docker-compose exec web pytest
-   ```
+- API: <http://127.0.0.1:8000>
+- Swagger UI: <http://127.0.0.1:8000/api/v1/docs>
+- ReDoc: <http://127.0.0.1:8000/api/v1/redoc>
+- OpenAPI schema: <http://127.0.0.1:8000/api/v1/openapi.json>
+- Health check: <http://127.0.0.1:8000/api/v1/health>
+- MinIO Console: <http://127.0.0.1:9001>
 
-### How to Run/Generate Migrations Using Docker
+### Production environment
 
-1. Ensure the Docker containers are running (see the steps above).
-2. To generate a new migration, run the following command inside the Docker container:
-   ```bash
-   docker-compose exec web alembic revision --autogenerate -m "<migration_message>"
-   ```
-3. To apply migrations, run:
-   ```bash
-   docker-compose exec web alembic upgrade head
-   ```
+- API: <https://spots.pp.ua/api/v2>
+- Swagger UI: <https://spots.pp.ua/api/v2/docs>
+- ReDoc: <https://spots.pp.ua/api/v2/redoc>
+- OpenAPI schema: <https://spots.pp.ua/api/v2/openapi.json>
+- Health check: <https://spots.pp.ua/api/v2/health>
 
-### How to Seed the Database Using Docker
+## 🧰 Tech stack
 
-1. Ensure the Docker containers are running and migrations are applied (see the steps above).
-2. Run the seed script inside the `web` container:
-   ```bash
-   docker-compose exec web poetry run python seed_categories.py
-   ```
+- Python 3.12
+- FastAPI
+- PostgreSQL 17
+- SQLAlchemy Async
+- Alembic
+- Pydantic
+- Poetry
+- Docker Compose
+- MinIO
+- Pytest
+- Black
 
-If you see `ModuleNotFoundError: No module named '<module_name>'`, the image was built before
-`<module_name>` was added to the dependencies. Rebuild it and try again:
+## 🚀 Run locally with Docker
+
+### 1. Create an environment file
+
+PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+macOS/Linux:
+
 ```bash
-docker-compose build web
-docker-compose up -d
+cp .env.example .env
 ```
 
-## How to Run the Project Using Virtual Environment and Poetry
+Fill in the required values in `.env`.
 
-1. Ensure you have Python and Poetry installed on your system.
-2. Navigate to the project root directory.
-3. Create a virtual environment and install dependencies:
-   ```bash
-   poetry install
-   ```
-4. Start the application:
-   ```bash
-   poetry run uvicorn app.main:app --reload
-   ```
-5. The application will be available at `http://127.0.0.1:8000`.
-6. To see Swagger documentation, visit `http://127.0.0.1:8000/docs`.
+> Never commit `.env`: it contains database credentials and JWT/MinIO secrets.
 
-> **Note:** When running outside Docker, the database host in `DATABASE_URL` must be
-> `localhost` (the `db` hostname only resolves inside the Docker network). The Postgres
-> container publishes port `5432` to your machine, so start it with
-> `docker-compose up -d db`.
+### 2. Build and start containers
 
-### How to Run Tests Using Virtual Environment and Poetry
-
-1. Ensure the virtual environment is activated (see the steps above).
-2. Run the tests:
-   ```bash
-   poetry run pytest
-   ```
-
-### How to Run/Generate Migrations Using Virtual Environment and Poetry
-
-1. Ensure the virtual environment is activated (see the steps above).
-2. To generate a new migration, run:
-   ```bash
-   poetry run alembic revision --autogenerate -m "<migration_message>"
-   ```
-3. To apply migrations, run:
-   ```bash
-   poetry run alembic upgrade head
-   ```
-
-### How to Seed the Database Using Virtual Environment and Poetry
-
-1. Ensure the database is running and migrations are applied (see the steps above).
-2. Run the seed script from the project root:
-   ```bash
-   poetry run python seed_categories.py
-   ```
-
-## About the Seed Script
-
-`seed_categories.py` seeds the `categories` table with default values
-(Cafe, Restaurant, Bar, Bakery, Street food, Museum, Park, Shopping).
-
-Example output:
-
-```
-Categories seeded: 8 inserted, 0 already existed.
+```bash
+docker compose up --build -d
 ```
 
-- The script is **idempotent**: it is safe to run multiple times. Existing categories
-  (matched by ID or name) are skipped, not duplicated or overwritten.
-- Category IDs are fixed UUIDs, so they stay consistent across environments
-  (local, staging, production).
-- To add or change default categories, edit the `CATEGORIES` dict in
-  `seed_categories.py`. Renaming an existing category will not update it in a database
-  that has already been seeded; that requires a migration or a manual update.
+This starts:
+
+| Service | Purpose | Local port |
+| --- | --- | --- |
+| `web` | FastAPI application | `8000` |
+| `db` | PostgreSQL database | `5432` |
+| `minio` | Object storage for avatars and place photos | `9000`, `9001` |
+
+### 3. Apply database migrations
+
+```bash
+docker compose exec web poetry run alembic upgrade head
+```
+
+### 4. Verify the application
+
+```bash
+docker compose ps
+```
+
+Open Swagger: <http://127.0.0.1:8000/api/v1/docs>
+
+Or check service health:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/health
+```
+
+## ⚙️ Environment variables
+
+The complete local template is available in [`.env.example`](.env.example).
+
+| Variable | Description |
+| --- | --- |
+| `API_V1_PREFIX` | API URL prefix. Local default: `/api/v1` |
+| `DATABASE_URL` | Async PostgreSQL connection URL |
+| `JWT_SECRET_KEY` | Secret used to sign JWT tokens |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access-token lifetime in minutes |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh-token lifetime in days |
+| `MINIO_ENDPOINT` | MinIO endpoint inside Docker, for example `minio:9000` |
+| `MINIO_ACCESS_KEY` | MinIO access key |
+| `MINIO_SECRET_KEY` | MinIO secret key |
+| `MINIO_BUCKET` | Bucket for uploaded files |
+| `MINIO_SECURE` | Use HTTPS for MinIO connection (`false` locally) |
+
+For production, the server uses:
+
+```env
+API_V1_PREFIX=/api/v2
+```
+
+This is why production endpoints start with `/api/v2`.
+
+## 🖼️ Image storage
+
+Avatars and place photos are stored in MinIO; image bytes are not stored as Base64 in PostgreSQL.
+
+- Supported formats: JPEG, PNG, WebP
+- Maximum image size: 5 MB
+- A place can contain up to 10 photos
+- Photo order is stored using the `position` field
+- MinIO is not publicly exposed; images are served through backend endpoints
+
+When reading a place, use the `photos` field from the response:
+
+```json
+{
+  "photos": [
+    {
+      "id": "photo-uuid",
+      "name": "photo.jpg",
+      "content_type": "image/jpeg",
+      "position": 0,
+      "url": "https://.../places/{place_id}/photos/{photo_id}/content"
+    }
+  ]
+}
+```
+
+The frontend should use the `url` returned by the API as the image source.
+
+## 🗂️ Categories seed
+
+To add predefined categories to the database:
+
+```bash
+docker compose exec web poetry run python seed_categories.py
+```
+
+The seed script is idempotent: running it again will not duplicate existing categories.
+
+## 🧱 Database migrations
+
+Generate a migration:
+
+```bash
+docker compose exec web poetry run alembic revision --autogenerate -m "describe change"
+```
+
+Apply all migrations:
+
+```bash
+docker compose exec web poetry run alembic upgrade head
+```
+
+Check whether models and migrations are in sync:
+
+```bash
+docker compose exec web poetry run alembic check
+```
+
+## ✅ Code quality and tests
+
+Format code:
+
+```bash
+docker compose exec web poetry run black app
+```
+
+Check formatting without changing files:
+
+```bash
+docker compose exec web poetry run black --check app
+```
+
+Run tests:
+
+```bash
+docker compose exec web poetry run pytest
+```
+
+## 🛑 Stop the local environment
+
+Stop containers while preserving database and MinIO data:
+
+```bash
+docker compose down
+```
+
+To also remove local Docker volumes and all local database/media data:
+
+```bash
+docker compose down -v
+```
+
+> ⚠️ `docker compose down -v` permanently removes local PostgreSQL and MinIO data.
